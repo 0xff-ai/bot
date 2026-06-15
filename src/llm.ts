@@ -26,12 +26,13 @@ export async function draftChangelogOptions(
   title: string,
   diff: string,
 ): Promise<ChangelogDraft> {
+  const env = loadEnv();
   const provider = createOpenAICompatible({
     name: "openai",
-    baseURL: requireEnv("OPENAI_BASE_URL"),
-    apiKey: requireEnv("OPENAI_API_KEY"),
+    baseURL: env.OPENAI_BASE_URL,
+    apiKey: env.OPENAI_API_KEY,
   });
-  const model = provider(requireEnv("OPENAI_MODEL"));
+  const model = provider(env.OPENAI_MODEL);
 
   const schema = z.object({
     skip: z.boolean().describe("true when the PR has no user-facing change (chore, pure refactor, tests, CI)"),
@@ -50,10 +51,22 @@ export async function draftChangelogOptions(
   return object as ChangelogDraft;
 }
 
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set`);
-  return value;
+// The drafter's deployment config, declared and validated at the boundary. All
+// required, no defaults: a misconfigured deployment fails loudly here. Only the
+// propose path needs these, so they live with the drafter, not in a global env.
+const envSchema = z.object({
+  OPENAI_API_KEY: z.string().min(1),
+  OPENAI_BASE_URL: z.string().url(),
+  OPENAI_MODEL: z.string().min(1),
+});
+
+function loadEnv(): z.infer<typeof envSchema> {
+  const parsed = envSchema.safeParse(process.env);
+  if (!parsed.success) {
+    const fields = parsed.error.issues.map((i) => i.path.join(".")).join(", ");
+    throw new Error(`missing or invalid LLM config: ${fields}`);
+  }
+  return parsed.data;
 }
 
 // "JSON" is named on purpose: DeepSeek's json_object response format requires the
