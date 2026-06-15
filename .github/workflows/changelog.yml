@@ -19,11 +19,17 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      checks: write
+      pull-requests: read
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      BOT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dangoslen/changelog-enforcer@v3
+      - uses: 0xff-ai/bot@v1
         with:
-          skipLabels: "no-changelog"
+          command: gate
+          pr: ${{ github.event.pull_request.number }}
 
   propose:
     if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'release/')

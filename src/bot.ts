@@ -67,6 +67,30 @@ export class ChangelogBot {
     console.log(`#${pr}: posted changelog proposal under ${draft.area}`);
   }
 
+  /**
+   * Gate: report the `changelog` check on the PR head. Blocks merge with an
+   * orange `action_required` (not a red failure) until CHANGELOG.md changes or the
+   * `no-changelog` label is set.
+   */
+  async gate(pr: number, headSha: string): Promise<void> {
+    const satisfied =
+      (await this.github.prChangedFiles(pr)).includes(CHANGELOG) ||
+      (await this.github.hasLabel(pr, SKIP_LABEL));
+    if (satisfied) {
+      await this.github.reportCheck("changelog", headSha, "success", "Changelog entry present", "This PR updates CHANGELOG.md (or carries the `no-changelog` label).");
+      console.log(`#${pr}: changelog present; gate satisfied`);
+      return;
+    }
+    await this.github.reportCheck(
+      "changelog",
+      headSha,
+      "action_required",
+      "Changelog entry required",
+      "Add one by commenting `/changelog [short|med|long]`, or apply the `no-changelog` label. Merge stays blocked until then.",
+    );
+    console.log(`#${pr}: changelog missing; gate set to action_required`);
+  }
+
   /** Comment stage: act on a `/changelog ...` command from an authorized user. */
   async apply(pr: number, ctx: CommentContext): Promise<void> {
     const command = parseCommand(ctx.body, this.config.areas);

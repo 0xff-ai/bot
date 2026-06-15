@@ -6,7 +6,7 @@ A changelog bot for repos that keep a [Keep a Changelog](https://keepachangelog.
 
 - **Propose** (on `pull_request`): unless the PR already edits `CHANGELOG.md`, the bot drafts one entry in three lengths and posts a sticky comment. A no-user-facing-change PR is labeled `no-changelog` automatically.
 - **Apply** (on `issue_comment`): the author or a maintainer replies with a `/changelog` command and the bot commits the entry to the PR branch under its area heading. Fork PRs can't be pushed to, so the bot posts the exact commands a maintainer runs locally.
-- **Gate** (on `pull_request`): [`dangoslen/changelog-enforcer`](https://github.com/dangoslen/changelog-enforcer) fails the PR until `CHANGELOG.md` changes, with the `no-changelog` label as the escape hatch.
+- **Gate** (on `pull_request`): reports a `changelog` check that blocks merge until `CHANGELOG.md` changes (or the `no-changelog` label is set). It uses an `action_required` conclusion, so a missing entry shows as an orange "action required" state rather than a red failure.
 
 The entry is added additively under its `### <area>` subsection: existing lines are never rewritten, so hand-edits survive and re-applying the same entry is a no-op.
 
@@ -41,7 +41,7 @@ Only the PR author or a maintainer (repo owner/member/collaborator, or a login i
        secrets: inherit
    ```
 
-5. Add the `changelog-enforcer` check (the `gate` job) to the branch's required status checks so it actually blocks merge.
+5. Add the **`changelog`** check (reported by the `gate` job) to the branch's required status checks so it actually blocks merge. The job itself stays green; the `changelog` check is what blocks, as an orange `action_required` until an entry exists.
 
 ## Config (`.github/bot.yml`)
 

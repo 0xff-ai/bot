@@ -125,4 +125,31 @@ export class GitHub {
   async addLabel(number: number, label: string): Promise<void> {
     await this.api.rest.issues.addLabels({ ...this.base, issue_number: number, labels: [label] });
   }
+
+  async hasLabel(number: number, label: string): Promise<boolean> {
+    const { data } = await this.api.rest.issues.get({ ...this.base, issue_number: number });
+    return data.labels.some((l) => (typeof l === "string" ? l : l.name) === label);
+  }
+
+  /**
+   * Report a check-run conclusion on a commit. `action_required` blocks a required
+   * check while rendering as an orange "action required" state rather than a red
+   * failure; `success` clears it.
+   */
+  async reportCheck(
+    name: string,
+    headSha: string,
+    conclusion: "success" | "action_required",
+    title: string,
+    summary: string,
+  ): Promise<void> {
+    await this.api.rest.checks.create({
+      ...this.base,
+      name,
+      head_sha: headSha,
+      status: "completed",
+      conclusion,
+      output: { title, summary },
+    });
+  }
 }
