@@ -1,0 +1,71 @@
+name: Changelog
+
+# Reusable workflow a consuming repo calls from a thin caller that triggers on
+# pull_request and issue_comment (see README). Three jobs, each guarded by the
+# event that should drive it:
+#   gate      (pull_request)  fail until CHANGELOG.md changes or `no-changelog` is set
+#   propose   (pull_request)  draft an entry and post the sticky proposal comment
+#   apply     (issue_comment) commit the chosen entry to the PR branch on /changelog
+
+on:
+  workflow_call:
+    secrets:
+      OPENCODE_ZEN_API_KEY:
+        required: false
+
+jobs:
+  gate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dangoslen/changelog-enforcer@v3
+        with:
+          skipLabels: "no-changelog"
+
+  propose:
+    if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'release/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      OPENCODE_ZEN_API_KEY: ${{ secrets.OPENCODE_ZEN_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: 0xff-ai/bot@v1
+        with:
+          command: propose
+          pr: ${{ github.event.pull_request.number }}
+
+  apply:
+    if: >-
+      github.event_name == 'issue_comment'
+      && github.event.issue.pull_request
+      && contains(github.event.comment.body, '/changelog')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      OPENCODE_ZEN_API_KEY: ${{ secrets.OPENCODE_ZEN_API_KEY }}
+      # Untrusted comment fields are passed as env, never interpolated into a shell.
+      BOT_COMMENT_BODY: ${{ github.event.comment.body }}
+      BOT_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+      BOT_COMMENT_ASSOCIATION: ${{ github.event.comment.author_association }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Configure git identity
+        run: |
+          git config user.name "0xff-changelog-bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - uses: 0xff-ai/bot@v1
+        with:
+          command: apply
+          pr: ${{ github.event.issue.number }}

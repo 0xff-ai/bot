@@ -1,0 +1,22 @@
+name: "0xff changelog bot"
+description: "LLM-drafted, area-grouped changelog entries committed to the PR branch."
+inputs:
+  command:
+    description: "propose | apply"
+    required: true
+  pr:
+    description: "Pull request number"
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: "1.3.14"
+    - shell: bash
+      working-directory: ${{ github.action_path }}
+      run: bun install --frozen-lockfile
+    # Runs against the consuming repo's checkout (the default working directory);
+    # the bot's own code is resolved from the action path.
+    - shell: bash
+      run: bun "${{ github.action_path }}/src/main.ts" "${{ inputs.command }}" --pr "${{ inputs.pr }}"
