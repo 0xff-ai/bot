@@ -47,6 +47,9 @@ export async function draftChangelogOptions(
     schema,
     system: systemPrompt(config),
     prompt: userPrompt(title, diff),
+    // Cap output so a long entry can't truncate the JSON mid-string (a documented
+    // failure mode of DeepSeek json_object mode).
+    maxOutputTokens: 1024,
   });
   return object as ChangelogDraft;
 }
@@ -69,21 +72,31 @@ function loadEnv(): z.infer<typeof envSchema> {
   return parsed.data;
 }
 
-// "JSON" is named on purpose: DeepSeek's json_object response format requires the
-// word to appear in the prompt.
+// DeepSeek json_object mode needs both the word "json" and an example of the
+// desired shape in the prompt to reliably emit valid JSON; this provides both.
 function systemPrompt(config: Config): string {
+  const exampleArea = config.areas.ids[0];
   return `You write end-user changelog entries for ${config.product}.
 
-From a PR title and diff, produce a single changelog entry in three lengths (short, medium, long), all describing the same change in the same plain, user-facing style. Return JSON matching the provided schema.
+From a PR title and diff, produce a single changelog entry in three lengths (short, medium, long), all describing the same change in the same plain, user-facing style.
 
 Rules:
 - Describe observable behavior, not implementation. No commit-type prefixes, no file names, no internal module names.
-- Pick the single best-fitting product area from the schema's enum.
-- If the PR has no user-facing change (chore, pure refactor, tests, CI, dependency bumps), set skip=true and leave the text fields empty.`;
+- Pick the single best-fitting product area id from: ${config.areas.ids.join(", ")}.
+- If the PR has no user-facing change (chore, pure refactor, tests, CI, dependency bumps), set skip=true and leave the text fields empty.
+
+Respond with JSON only, matching this shape:
+{
+  "skip": false,
+  "area": "${exampleArea}",
+  "short": "one terse line, ~6-10 words",
+  "medium": "one sentence, ~15-25 words",
+  "long": "one or two sentences, ~30-50 words"
+}`;
 }
 
 function userPrompt(title: string, diff: string): string {
   const MAX_DIFF = 60_000;
   const clipped = diff.length > MAX_DIFF ? `${diff.slice(0, MAX_DIFF)}\n... [diff truncated]` : diff;
-  return `PR title: ${title}\n\nUnified diff:\n${clipped}`;
+  return `PR title: ${title}\n\nUnified diff:\n${clipped}\n\nReturn the changelog entry as JSON.`;
 }

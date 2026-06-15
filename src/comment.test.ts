@@ -27,12 +27,13 @@ describe("proposal comment data block", () => {
     expect(parseProposalData(renderProposal(tricky, testAreas))).toEqual(tricky);
   });
 
-  test("renders the command help and the three lengths", () => {
+  test("leads with the medium entry and the area, and includes every length and the apply command", () => {
     const body = renderProposal(draft, testAreas);
     expect(body).toContain("/changelog apply");
-    expect(body).toContain(`short: ${draft.short}`);
-    expect(body).toContain(`medium: ${draft.medium}`);
-    expect(body).toContain(`long: ${draft.long}`);
+    expect(body).toContain(testAreas.byId(draft.area).heading);
+    expect(body).toContain(`> ${draft.medium}`); // medium shown prominently as a blockquote
+    expect(body).toContain(draft.short);
+    expect(body).toContain(draft.long);
   });
 
   test("returns undefined for a comment without the marker", () => {
