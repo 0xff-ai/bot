@@ -11,9 +11,11 @@ import { generateObject } from "ai";
 import { z } from "zod";
 import type { Config } from "./config";
 
-const DEFAULT_BASE_URL = "https://opencode.ai/zen/v1";
-// OpenCode Zen model ids are bare (no `opencode/` prefix); see GET <base>/models.
-// Set OPENAI_MODEL=deepseek-v4-flash-free for the free tier (free period only).
+// OpenCode Zen (Go) endpoint per their docs: the OpenAI-compatible client appends
+// /chat/completions and /models to this base. Model ids are bare (no `opencode/`
+// prefix); see GET <base>/models. OPENAI_MODEL=deepseek-v4-flash-free uses the
+// free tier (free period only).
+const DEFAULT_BASE_URL = "https://opencode.ai/zen/go/v1";
 const DEFAULT_MODEL = "deepseek-v4-flash";
 
 export type ChangelogDraft = {
