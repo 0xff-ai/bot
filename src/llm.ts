@@ -1,6 +1,16 @@
 // Drafts changelog entries with the Vercel AI SDK against an OpenAI-compatible
-// gateway. Output is structured (generateText + Output.object + a Zod schema)
-// rather than free text: more reliable on small/cheap models, no brittle parsing.
+// gateway. Output is structured (generateText + Output.object + a Zod schema):
+// the model returns JSON and Output.object validates it against the schema, so we
+// never hand-parse free text and never lose the schema guarantee.
+//
+// Whether the provider sends a strict json_schema response_format depends on the
+// model (supportsJsonSchema): mimo/glm/kimi accept it on OpenCode Go, while
+// DeepSeek V4 rejects json_schema with "This response_format type is unavailable
+// now" and only supports json_object. For json_object models the provider emits a
+// benign "JSON response format schema is only supported with structuredOutputs"
+// warning and Output.object still validates the returned JSON against the schema.
+// Either way the schema guarantee holds: do NOT drop Output.object for manual
+// free-text parsing. See CLAUDE.md "Structured output".
 //
 // The gateway is deployment config, not code: OPENAI_API_KEY, OPENAI_BASE_URL, and
 // OPENAI_MODEL are all required with no in-code fallback, so a misconfigured
@@ -8,7 +18,7 @@
 // product line and areas come from the consuming repo's bot.yml.
 
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { generateText, NoObjectGeneratedError, Output } from "ai";
+import { generateText, NoObjectGeneratedError, NoOutputGeneratedError, Output } from "ai";
 import { z } from "zod";
 import type { Config } from "./config";
 
@@ -28,6 +38,24 @@ const TYPE_LABELS: Record<string, string> = {
 /** Canonical display label for a model-returned type, or "Change" if unknown. */
 export function typeLabel(type: string): string {
   return TYPE_LABELS[type.trim().toLowerCase()] ?? "Change";
+}
+
+// Model families verified (live, 2026-06, OpenCode Go) to accept strict
+// json_schema structured outputs. Everything else falls back to json_object.
+const JSON_SCHEMA_MODEL_FAMILIES = ["mimo", "glm", "kimi"] as const;
+
+/**
+ * Whether OPENAI_MODEL accepts strict json_schema structured outputs.
+ *
+ * mimo / glm / kimi return HTTP 200 with a json_schema response_format; DeepSeek
+ * V4 (`deepseek-*`) rejects it with "This response_format type is unavailable
+ * now" and only supports json_object. Unknown models default to json_object too:
+ * the safe path every model supports, with Output.object validating the result.
+ * Add a family here only after verifying it accepts json_schema on the gateway.
+ */
+export function supportsJsonSchema(model: string): boolean {
+  const m = model.trim().toLowerCase();
+  return JSON_SCHEMA_MODEL_FAMILIES.some((f) => m === f || m.startsWith(`${f}-`));
 }
 
 export type ChangelogEntry = {
@@ -54,6 +82,9 @@ export async function draftChangelogOptions(
     name: "openai",
     baseURL: env.OPENAI_BASE_URL,
     apiKey: env.OPENAI_API_KEY,
+    // Send strict json_schema only for models known to accept it; others fall
+    // back to json_object (Output.object still validates). See supportsJsonSchema.
+    supportsStructuredOutputs: supportsJsonSchema(env.OPENAI_MODEL),
   });
   const model = provider(env.OPENAI_MODEL);
 
@@ -71,9 +102,14 @@ export async function draftChangelogOptions(
     entries: z.array(entrySchema).describe("one entry per distinct user-facing change; empty when skip"),
   });
 
-  // json_object mode is not grammar-constrained, so the model occasionally samples
-  // JSON that fails validation. temperature 0 minimises that and a few retries
-  // cover the residue. Real errors (auth, balance, timeout) are not retried.
+  // json_object mode returns valid JSON but does not constrain it to the schema,
+  // so Output.object can still reject it, and the model can return an empty
+  // completion. temperature 0 minimises drift and a few retries cover both. The
+  // retryable failures are NoOutputGeneratedError (Output.object got nothing
+  // parseable) and NoObjectGeneratedError; real errors (auth, balance, the
+  // json_schema rejection above, timeout) are neither and throw straight out.
+  // The original "No output generated" CI failure was an uncaught
+  // NoOutputGeneratedError that skipped this loop entirely.
   let lastError: unknown;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
@@ -94,11 +130,16 @@ export async function draftChangelogOptions(
         })),
       };
     } catch (error) {
-      if (!NoObjectGeneratedError.isInstance(error)) throw error;
+      // Output.object throws NoOutputGeneratedError; generateObject-style paths
+      // throw NoObjectGeneratedError. Both mean "no valid object this attempt" and
+      // are retryable; anything else is a real error and propagates.
+      if (!NoOutputGeneratedError.isInstance(error) && !NoObjectGeneratedError.isInstance(error)) throw error;
       lastError = error;
-      console.error(`draft attempt ${attempt + 1} did not match schema`);
-      console.error("  cause:", error.cause instanceof Error ? error.cause.message : String(error.cause));
-      console.error("  raw model response:", error.text ?? "(none)");
+      const cause = error.cause instanceof Error ? error.cause.message : String(error.cause);
+      const raw = NoObjectGeneratedError.isInstance(error) ? error.text : undefined;
+      console.error(`draft attempt ${attempt + 1} produced no valid object`);
+      console.error("  cause:", cause);
+      console.error("  raw model response:", raw ?? "(none)");
     }
   }
   throw lastError;
@@ -122,8 +163,9 @@ function loadEnv(): z.infer<typeof envSchema> {
   return parsed.data;
 }
 
-// DeepSeek json_object mode needs both the word "json" and an example of the
-// desired shape in the prompt to reliably emit valid JSON; this provides both.
+// Structured outputs constrain the response to the schema, but a concrete example
+// shape in the prompt still steers smaller models toward the right fields; this
+// provides one (and names "json"), which is cheap belt-and-suspenders.
 function systemPrompt(config: Config): string {
   const exampleArea = config.areas.ids[0];
   return `You write end-user changelog entries for ${config.product}.
