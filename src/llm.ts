@@ -8,7 +8,7 @@
 // product line and areas come from the consuming repo's bot.yml.
 
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { generateObject } from "ai";
+import { generateObject, NoObjectGeneratedError } from "ai";
 import { z } from "zod";
 import type { Config } from "./config";
 
@@ -34,39 +34,31 @@ export async function draftChangelogOptions(
   });
   const model = provider(env.OPENAI_MODEL);
 
-  // area is a free string, not z.enum: small models in json_object mode often
-  // return a heading or a near-miss id, which would hard-fail a strict enum. We
-  // resolve it to a real id afterwards instead.
   const schema = z.object({
     skip: z.boolean().describe("true when the PR has no user-facing change (chore, pure refactor, tests, CI)"),
-    area: z.string().describe(`one of these product area ids: ${config.areas.ids.join(", ")}`),
+    area: z.enum(config.areas.ids).describe("the single product area this change belongs to"),
     short: z.string().describe("one terse line, roughly 6-10 words; empty when skip"),
     medium: z.string().describe("one sentence, roughly 15-25 words; empty when skip"),
     long: z.string().describe("one or two sentences with the user-facing detail, roughly 30-50 words; empty when skip"),
   });
 
-  // Retry: json_object mode is not grammar-constrained, so a small model can emit
-  // JSON that fails schema validation; another sample usually succeeds.
-  let lastError: unknown;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const { object } = await generateObject({
-        model,
-        schema,
-        system: systemPrompt(config),
-        prompt: userPrompt(title, diff),
-        // Cap output so a long entry can't truncate the JSON mid-string.
-        maxOutputTokens: 1024,
-      });
-      return {
-        ...object,
-        area: config.areas.resolve(object.area)?.id ?? config.areas.fallback.id,
-      };
-    } catch (error) {
-      lastError = error;
+  try {
+    const { object } = await generateObject({
+      model,
+      schema,
+      system: systemPrompt(config),
+      prompt: userPrompt(title, diff),
+      maxOutputTokens: 1024,
+    });
+    return object as ChangelogDraft;
+  } catch (error) {
+    if (NoObjectGeneratedError.isInstance(error)) {
+      console.error("draft failed: model output did not match schema");
+      console.error("cause:", error.cause instanceof Error ? error.cause.message : String(error.cause));
+      console.error("raw model response:", error.text ?? "(none)");
     }
+    throw error;
   }
-  throw lastError;
 }
 
 // The drafter's deployment config, declared and validated at the boundary. All
