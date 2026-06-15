@@ -25,7 +25,7 @@ Only the PR author or a maintainer (repo owner/member/collaborator, or a login i
 
 1. Add `.github/bot.yml` (see [`bot.example.yml`](./bot.example.yml)): the `product` line, `maintainers`, and the changelog `areas`.
 2. Ensure `CHANGELOG.md` has a `## [Unreleased]` section.
-3. Add the org-level secret `OPENAI_API_KEY` (drafting; override the endpoint/model with `OPENAI_BASE_URL` / `OPENAI_MODEL`).
+3. Configure the drafter (all required, no defaults): the secret `OPENAI_API_KEY`, plus `OPENAI_BASE_URL` and `OPENAI_MODEL` set as either secrets or repo/org variables. For OpenCode Zen Go: `OPENAI_BASE_URL=https://opencode.ai/zen/go/v1`, `OPENAI_MODEL=deepseek-v4-flash`.
 4. Add the caller workflow `.github/workflows/changelog.yml`:
 
    ```yaml

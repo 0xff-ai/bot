@@ -2,21 +2,15 @@
 // gateway. Output is structured (generateObject + a Zod schema) rather than free
 // text: more reliable on small/cheap models, and it removes any brittle parse step.
 //
-// The model and endpoint are config, not code: set OPENAI_API_KEY, and override
-// OPENAI_BASE_URL / OPENAI_MODEL to point at a different gateway or model. The
+// The gateway is deployment config, not code: OPENAI_API_KEY, OPENAI_BASE_URL, and
+// OPENAI_MODEL are all required with no in-code fallback, so a misconfigured
+// deployment fails loudly instead of silently hitting a baked-in default. The
 // product line and areas come from the consuming repo's bot.yml.
 
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateObject } from "ai";
 import { z } from "zod";
 import type { Config } from "./config";
-
-// OpenCode Zen (Go) endpoint per their docs: the OpenAI-compatible client appends
-// /chat/completions and /models to this base. Model ids are bare (no `opencode/`
-// prefix); see GET <base>/models. OPENAI_MODEL=deepseek-v4-flash-free uses the
-// free tier (free period only).
-const DEFAULT_BASE_URL = "https://opencode.ai/zen/go/v1";
-const DEFAULT_MODEL = "deepseek-v4-flash";
 
 export type ChangelogDraft = {
   skip: boolean;
@@ -32,15 +26,12 @@ export async function draftChangelogOptions(
   title: string,
   diff: string,
 ): Promise<ChangelogDraft> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
-
   const provider = createOpenAICompatible({
     name: "openai",
-    baseURL: process.env.OPENAI_BASE_URL || DEFAULT_BASE_URL,
-    apiKey,
+    baseURL: requireEnv("OPENAI_BASE_URL"),
+    apiKey: requireEnv("OPENAI_API_KEY"),
   });
-  const model = provider(process.env.OPENAI_MODEL || DEFAULT_MODEL);
+  const model = provider(requireEnv("OPENAI_MODEL"));
 
   const schema = z.object({
     skip: z.boolean().describe("true when the PR has no user-facing change (chore, pure refactor, tests, CI)"),
@@ -57,6 +48,12 @@ export async function draftChangelogOptions(
     prompt: userPrompt(title, diff),
   });
   return object as ChangelogDraft;
+}
+
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is not set`);
+  return value;
 }
 
 // "JSON" is named on purpose: DeepSeek's json_object response format requires the
