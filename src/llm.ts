@@ -34,9 +34,12 @@ export async function draftChangelogOptions(
   });
   const model = provider(env.OPENAI_MODEL);
 
+  // area is a free string, not z.enum: the model empties it on skip (and can
+  // return a heading or near-miss id), which a strict enum rejects. We resolve it
+  // to a real id afterwards instead.
   const schema = z.object({
     skip: z.boolean().describe("true when the PR has no user-facing change (chore, pure refactor, tests, CI)"),
-    area: z.enum(config.areas.ids).describe("the single product area this change belongs to"),
+    area: z.string().describe(`one of these product area ids: ${config.areas.ids.join(", ")} (empty when skip)`),
     short: z.string().describe("one terse line, roughly 6-10 words; empty when skip"),
     medium: z.string().describe("one sentence, roughly 15-25 words; empty when skip"),
     long: z.string().describe("one or two sentences with the user-facing detail, roughly 30-50 words; empty when skip"),
@@ -57,7 +60,10 @@ export async function draftChangelogOptions(
         maxOutputTokens: 1024,
         abortSignal: AbortSignal.timeout(60_000),
       });
-      return output as ChangelogDraft;
+      return {
+        ...output,
+        area: config.areas.resolve(output.area)?.id ?? config.areas.fallback.id,
+      };
     } catch (error) {
       if (!NoObjectGeneratedError.isInstance(error)) throw error;
       lastError = error;
