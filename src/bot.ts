@@ -20,6 +20,7 @@ import type { Config } from "./config";
 import type { GitHub } from "./github";
 import { draftChangelogOptions, typeLabel, type ChangelogDraft } from "./llm";
 import type { Repo } from "./repo";
+import { stampEntry } from "./stamp";
 
 const CHANGELOG = "CHANGELOG.md";
 const COMMIT_PREFIX = "docs(changelog):";
@@ -109,13 +110,17 @@ export class ChangelogBot {
       );
       return;
     }
+    // Stamp each bullet with `(#pr)`, crediting the PR author when they are not a
+    // maintainer. The credit is the contributor, not the commenter applying it.
+    const prAuthor = await this.github.prAuthorLogin(pr);
+    const stamped = bullets.map((b) => ({ ...b, text: stampEntry(b.text, pr, prAuthor, this.config.maintainers) }));
     const head = await this.github.prHead(pr);
     if (head.isCrossRepository) {
-      await this.github.postComment(pr, this.forkInstructions(pr, bullets));
+      await this.github.postComment(pr, this.forkInstructions(pr, stamped));
       console.log(`#${pr}: fork PR; posted manual apply instructions`);
       return;
     }
-    await this.commitToBranch(pr, head.ref, bullets, ctx.author);
+    await this.commitToBranch(pr, head.ref, stamped, ctx.author);
   }
 
   private async resolveBullets(pr: number, command: Exclude<Command, { kind: "skip" }>): Promise<Bullet[]> {
