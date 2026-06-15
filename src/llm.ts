@@ -1,11 +1,10 @@
 // Drafts a changelog entry with the Vercel AI SDK against an OpenAI-compatible
-// gateway (OpenCode Zen by default). Output is structured (generateObject + a Zod
-// schema) rather than free text: more reliable on small/cheap models like
-// DeepSeek Flash, and it removes any brittle parse step.
+// gateway. Output is structured (generateObject + a Zod schema) rather than free
+// text: more reliable on small/cheap models, and it removes any brittle parse step.
 //
-// The model and endpoint are config, not code: set OPENCODE_ZEN_API_KEY, and
-// override OMNIFS_RELEASE_NOTES_MODEL / OMNIFS_RELEASE_NOTES_BASE_URL to point
-// elsewhere. The product line and areas come from the consuming repo's bot.yml.
+// The model and endpoint are config, not code: set OPENAI_API_KEY, and override
+// OPENAI_BASE_URL / OPENAI_MODEL to point at a different gateway or model. The
+// product line and areas come from the consuming repo's bot.yml.
 
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateObject } from "ai";
@@ -29,15 +28,15 @@ export async function draftChangelogOptions(
   title: string,
   diff: string,
 ): Promise<ChangelogDraft> {
-  const apiKey = process.env.OPENCODE_ZEN_API_KEY;
-  if (!apiKey) throw new Error("OPENCODE_ZEN_API_KEY is not set");
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
 
   const provider = createOpenAICompatible({
-    name: "opencode",
-    baseURL: process.env.OMNIFS_RELEASE_NOTES_BASE_URL || DEFAULT_BASE_URL,
+    name: "openai",
+    baseURL: process.env.OPENAI_BASE_URL || DEFAULT_BASE_URL,
     apiKey,
   });
-  const model = provider(process.env.OMNIFS_RELEASE_NOTES_MODEL || DEFAULT_MODEL);
+  const model = provider(process.env.OPENAI_MODEL || DEFAULT_MODEL);
 
   const schema = z.object({
     skip: z.boolean().describe("true when the PR has no user-facing change (chore, pure refactor, tests, CI)"),

@@ -45,9 +45,9 @@ export class ChangelogBot {
       console.log(`#${pr}: PR already edits ${CHANGELOG}; nothing to propose`);
       return;
     }
-    if (!process.env.OPENCODE_ZEN_API_KEY) {
+    if (!process.env.OPENAI_API_KEY) {
       // Fork PRs cannot read the secret; a maintainer can still apply at review.
-      console.log(`#${pr}: no OPENCODE_ZEN_API_KEY (likely a fork PR); skipping draft`);
+      console.log(`#${pr}: no OPENAI_API_KEY (likely a fork PR); skipping draft`);
       return;
     }
     if (await this.github.findComment(pr, MARKER)) {

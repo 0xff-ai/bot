@@ -25,7 +25,7 @@ Only the PR author or a maintainer (repo owner/member/collaborator, or a login i
 
 1. Add `.github/bot.yml` (see [`bot.example.yml`](./bot.example.yml)): the `product` line, `maintainers`, and the changelog `areas`.
 2. Ensure `CHANGELOG.md` has a `## [Unreleased]` section.
-3. Add the org-level secret `OPENCODE_ZEN_API_KEY` (drafting; override the model/endpoint with `OMNIFS_RELEASE_NOTES_MODEL` / `OMNIFS_RELEASE_NOTES_BASE_URL`).
+3. Add the org-level secret `OPENAI_API_KEY` (drafting; override the endpoint/model with `OPENAI_BASE_URL` / `OPENAI_MODEL`).
 4. Add the caller workflow `.github/workflows/changelog.yml`:
 
    ```yaml

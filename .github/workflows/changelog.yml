@@ -10,7 +10,7 @@ name: Changelog
 on:
   workflow_call:
     secrets:
-      OPENCODE_ZEN_API_KEY:
+      OPENAI_API_KEY:
         required: false
 
 jobs:
@@ -33,7 +33,7 @@ jobs:
       pull-requests: write
     env:
       GITHUB_TOKEN: ${{ github.token }}
-      OPENCODE_ZEN_API_KEY: ${{ secrets.OPENCODE_ZEN_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: 0xff-ai/bot@v1
@@ -52,7 +52,7 @@ jobs:
       pull-requests: write
     env:
       GITHUB_TOKEN: ${{ github.token }}
-      OPENCODE_ZEN_API_KEY: ${{ secrets.OPENCODE_ZEN_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       # Untrusted comment fields are passed as env, never interpolated into a shell.
       BOT_COMMENT_BODY: ${{ github.event.comment.body }}
       BOT_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
