@@ -1,18 +1,16 @@
 // The changelog bot has two human-facing stages:
 //
-//   propose(pr):  on a feature PR, draft one entry in three lengths and post it as
-//                 a sticky comment. Skipped when the PR already edits CHANGELOG.md
-//                 (the author wrote their own). A no-user-facing-change PR gets the
-//                 `no-changelog` label so the merge gate passes.
+//   propose(pr):  on a feature PR, draft one entry per distinct user-facing change
+//                 (each typed and area-classified, in three lengths) and post them
+//                 as a sticky comment. Skipped when the PR already edits
+//                 CHANGELOG.md. A no-user-facing-change PR gets the `no-changelog`
+//                 label so the merge gate passes.
 //
 //   apply(pr):    when the author or a maintainer comments `/changelog ...`, commit
-//                 the chosen entry to the PR's own branch under its area heading.
-//                 Fork PRs can't be pushed to, so the bot posts the exact commands
-//                 a maintainer runs locally instead.
+//                 the chosen entries to the PR's own branch under their areas. Fork
+//                 PRs can't be pushed to, so the bot posts the commands to run.
 //
-// The merge gate (requiring CHANGELOG.md to change, with `no-changelog` as the
-// escape hatch) is enforced by dangoslen/changelog-enforcer in the workflow, not
-// here.
+// The merge gate is reported by gate() as the `changelog` check (see that method).
 
 import { match } from "ts-pattern";
 import { appendBulletsToUnreleased, parseChangelog, withUnreleased } from "./changelog";
@@ -20,7 +18,7 @@ import { parseCommand, type Command } from "./command";
 import { MARKER, parseProposalData, renderProposal } from "./comment";
 import type { Config } from "./config";
 import type { GitHub } from "./github";
-import { draftChangelogOptions, type ChangelogDraft } from "./llm";
+import { draftChangelogOptions, typeLabel, type ChangelogDraft } from "./llm";
 import type { Repo } from "./repo";
 
 const CHANGELOG = "CHANGELOG.md";
@@ -30,7 +28,7 @@ const SKIP_LABEL_DESC = "No changelog entry required for this PR";
 const PRIVILEGED = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 
 export type CommentContext = { body: string; author: string; association: string };
-type Entry = { area: string; text: string };
+type Bullet = { area: string; text: string };
 
 export class ChangelogBot {
   constructor(
@@ -39,7 +37,7 @@ export class ChangelogBot {
     private readonly github: GitHub,
   ) {}
 
-  /** PR stage: draft the entry and post the sticky proposal comment. */
+  /** PR stage: draft the entries and post the sticky proposal comment. */
   async propose(pr: number): Promise<void> {
     if (await this.changelogTouched(pr)) {
       console.log(`#${pr}: PR already edits ${CHANGELOG}; nothing to propose`);
@@ -57,14 +55,13 @@ export class ChangelogBot {
     const title = await this.github.prTitle(pr);
     const diff = await this.github.prDiff(pr);
     const draft = await draftChangelogOptions(this.config, title, diff);
-    if (draft.skip) {
+    await this.github.upsertComment(pr, MARKER, renderProposal(draft, this.config.areas));
+    if (draft.skip || draft.entries.length === 0) {
       await this.label(pr);
-      await this.github.upsertComment(pr, MARKER, renderProposal(draft, this.config.areas));
       console.log(`#${pr}: no user-facing change; labeled ${SKIP_LABEL}`);
       return;
     }
-    await this.github.upsertComment(pr, MARKER, renderProposal(draft, this.config.areas));
-    console.log(`#${pr}: posted changelog proposal under ${draft.area}`);
+    console.log(`#${pr}: posted changelog proposal with ${draft.entries.length} entr${draft.entries.length === 1 ? "y" : "ies"}`);
   }
 
   /**
@@ -104,39 +101,40 @@ export class ChangelogBot {
       await this.github.postComment(pr, `Labeled \`${SKIP_LABEL}\`: no changelog entry needed.`);
       return;
     }
-    const entry = await this.resolveEntry(pr, command);
-    if (!entry) {
+    const bullets = await this.resolveBullets(pr, command);
+    if (bullets.length === 0) {
       await this.github.postComment(
         pr,
-        "Couldn't resolve a changelog entry from that command. Try `/changelog apply` or `/changelog <area>: your text`.",
+        "Couldn't resolve a changelog entry from that command. Try `/changelog [short|med|long]` or `/changelog <area>: your text`.",
       );
       return;
     }
     const head = await this.github.prHead(pr);
     if (head.isCrossRepository) {
-      await this.github.postComment(pr, this.forkInstructions(pr, entry));
+      await this.github.postComment(pr, this.forkInstructions(pr, bullets));
       console.log(`#${pr}: fork PR; posted manual apply instructions`);
       return;
     }
-    await this.commitToBranch(pr, head.ref, entry, ctx.author);
+    await this.commitToBranch(pr, head.ref, bullets, ctx.author);
   }
 
-  private async resolveEntry(
-    pr: number,
-    command: Exclude<Command, { kind: "skip" }>,
-  ): Promise<Entry | undefined> {
+  private async resolveBullets(pr: number, command: Exclude<Command, { kind: "skip" }>): Promise<Bullet[]> {
     const draft = await this.recoverDraft(pr);
     return match(command)
       .with({ kind: "length" }, (c) => {
-        if (!draft || draft.skip) return undefined;
-        const text = draft[c.length].trim();
-        return text.length > 0 ? { area: draft.area, text } : undefined;
+        if (!draft || draft.skip) return [];
+        return draft.entries
+          .map((e) => {
+            const text = e[c.length].trim();
+            return text.length > 0 ? { area: e.area, text: `**${typeLabel(e.type)}:** ${text}` } : undefined;
+          })
+          .filter((b): b is Bullet => b !== undefined);
       })
       .with({ kind: "text" }, (c) => {
         const text = c.text.trim();
-        if (text.length === 0) return undefined;
-        const area = c.area ?? draft?.area ?? this.config.areas.fallback.id;
-        return { area, text };
+        if (text.length === 0) return [];
+        const area = c.area ?? draft?.entries[0]?.area ?? this.config.areas.fallback.id;
+        return [{ area, text }];
       })
       .exhaustive();
   }
@@ -146,42 +144,39 @@ export class ChangelogBot {
     return comment ? parseProposalData(comment.body) : undefined;
   }
 
-  private async commitToBranch(pr: number, ref: string, entry: Entry, author: string): Promise<void> {
+  private async commitToBranch(pr: number, ref: string, bullets: Bullet[], author: string): Promise<void> {
     await this.repo.$`git fetch origin ${ref}`.quiet();
     await this.repo.$`git checkout -B ${ref} FETCH_HEAD`.quiet();
     const log = parseChangelog(await Bun.file(this.repo.path(CHANGELOG)).text());
-    const body = appendBulletsToUnreleased(
-      log.unreleasedBody,
-      [{ area: entry.area, text: entry.text }],
-      this.config.areas,
-    );
+    const body = appendBulletsToUnreleased(log.unreleasedBody, bullets, this.config.areas);
     if (body === log.unreleasedBody) {
-      await this.github.postComment(pr, "That entry is already in `CHANGELOG.md`; nothing to add.");
+      await this.github.postComment(pr, "Those entries are already in `CHANGELOG.md`; nothing to add.");
       return;
     }
     await Bun.write(this.repo.path(CHANGELOG), withUnreleased(log, body).raw);
     const id = await this.github.userIdentity(author);
     await this.repo.$`git add ${CHANGELOG}`;
-    await this.repo.$`git commit -m ${`${COMMIT_PREFIX} add entry for #${pr}`} --author=${`${id.name} <${id.email}>`}`;
+    await this.repo.$`git commit -m ${`${COMMIT_PREFIX} add ${bullets.length === 1 ? "entry" : "entries"} for #${pr}`} --author=${`${id.name} <${id.email}>`}`;
     await this.repo.$`git push origin HEAD:${ref}`;
+    const areas = [...new Set(bullets.map((b) => this.config.areas.byId(b.area).heading))].join(", ");
     await this.github.postComment(
       pr,
-      `Added a changelog entry under **${this.config.areas.byId(entry.area).heading}**.`,
+      `Added ${bullets.length} changelog ${bullets.length === 1 ? "entry" : "entries"} (${areas}).`,
     );
-    console.log(`#${pr}: committed changelog entry under ${entry.area}`);
+    console.log(`#${pr}: committed ${bullets.length} changelog ${bullets.length === 1 ? "entry" : "entries"}`);
   }
 
-  private forkInstructions(pr: number, entry: Entry): string {
-    const heading = this.config.areas.byId(entry.area).heading;
+  private forkInstructions(pr: number, bullets: Bullet[]): string {
+    const lines = bullets.map((b) => `#   under "### ${this.config.areas.byId(b.area).heading}":  - ${b.text}`);
     return [
-      "This PR is from a fork, so I can't push to its branch. A maintainer with the PR checked out can add the entry locally:",
+      "This PR is from a fork, so I can't push to its branch. A maintainer with the PR checked out can add the entries locally:",
       "",
       "```bash",
       `gh pr checkout ${pr}`,
-      `# under "### ${heading}" in CHANGELOG.md's [Unreleased] section, add:`,
-      `#   - ${entry.text}`,
+      "# in CHANGELOG.md's [Unreleased] section, add:",
+      ...lines,
       "git add CHANGELOG.md",
-      `git commit -m "${COMMIT_PREFIX} add entry for #${pr}"`,
+      `git commit -m "${COMMIT_PREFIX} add entries for #${pr}"`,
       "git push",
       "```",
     ].join("\n");

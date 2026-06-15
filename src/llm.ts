@@ -1,6 +1,6 @@
-// Drafts a changelog entry with the Vercel AI SDK against an OpenAI-compatible
-// gateway. Output is structured (generateObject + a Zod schema) rather than free
-// text: more reliable on small/cheap models, and it removes any brittle parse step.
+// Drafts changelog entries with the Vercel AI SDK against an OpenAI-compatible
+// gateway. Output is structured (generateText + Output.object + a Zod schema)
+// rather than free text: more reliable on small/cheap models, no brittle parsing.
 //
 // The gateway is deployment config, not code: OPENAI_API_KEY, OPENAI_BASE_URL, and
 // OPENAI_MODEL are all required with no in-code fallback, so a misconfigured
@@ -12,15 +12,38 @@ import { generateText, NoObjectGeneratedError, Output } from "ai";
 import { z } from "zod";
 import type { Config } from "./config";
 
-export type ChangelogDraft = {
-  skip: boolean;
+/** Entry classification, shown as a `**Label:**` prefix on the bullet. */
+const TYPE_IDS = ["feature", "fix", "improvement", "performance", "breaking", "deprecation", "removal", "security"] as const;
+const TYPE_LABELS: Record<string, string> = {
+  feature: "Feature", feat: "Feature", new: "Feature",
+  fix: "Fix", bugfix: "Fix", bug: "Fix",
+  improvement: "Improvement", enhancement: "Improvement", improve: "Improvement",
+  performance: "Performance", perf: "Performance",
+  breaking: "Breaking",
+  deprecation: "Deprecation", deprecated: "Deprecation",
+  removal: "Removal", removed: "Removal", remove: "Removal",
+  security: "Security",
+};
+
+/** Canonical display label for a model-returned type, or "Change" if unknown. */
+export function typeLabel(type: string): string {
+  return TYPE_LABELS[type.trim().toLowerCase()] ?? "Change";
+}
+
+export type ChangelogEntry = {
   area: string;
+  type: string;
   short: string;
   medium: string;
   long: string;
 };
 
-/** Draft one changelog entry in three lengths from a PR title and diff. */
+export type ChangelogDraft = {
+  skip: boolean;
+  entries: ChangelogEntry[];
+};
+
+/** Draft one entry per distinct user-facing change in a PR, each in three lengths. */
 export async function draftChangelogOptions(
   config: Config,
   title: string,
@@ -34,15 +57,18 @@ export async function draftChangelogOptions(
   });
   const model = provider(env.OPENAI_MODEL);
 
-  // area is a free string, not z.enum: the model empties it on skip (and can
-  // return a heading or near-miss id), which a strict enum rejects. We resolve it
-  // to a real id afterwards instead.
+  // area/type are free strings, not z.enum: the model empties or near-misses them,
+  // which a strict enum rejects. We resolve them to canonical values afterwards.
+  const entrySchema = z.object({
+    area: z.string().describe(`one of these product area ids: ${config.areas.ids.join(", ")}`),
+    type: z.string().describe(`one of: ${TYPE_IDS.join(", ")}`),
+    short: z.string().describe("one terse line, roughly 6-10 words"),
+    medium: z.string().describe("one sentence, roughly 15-25 words"),
+    long: z.string().describe("one or two sentences with the user-facing detail, roughly 30-50 words"),
+  });
   const schema = z.object({
     skip: z.boolean().describe("true when the PR has no user-facing change (chore, pure refactor, tests, CI)"),
-    area: z.string().describe(`one of these product area ids: ${config.areas.ids.join(", ")} (empty when skip)`),
-    short: z.string().describe("one terse line, roughly 6-10 words; empty when skip"),
-    medium: z.string().describe("one sentence, roughly 15-25 words; empty when skip"),
-    long: z.string().describe("one or two sentences with the user-facing detail, roughly 30-50 words; empty when skip"),
+    entries: z.array(entrySchema).describe("one entry per distinct user-facing change; empty when skip"),
   });
 
   // json_object mode is not grammar-constrained, so the model occasionally samples
@@ -57,12 +83,15 @@ export async function draftChangelogOptions(
         system: systemPrompt(config),
         prompt: userPrompt(title, diff),
         temperature: 0,
-        maxOutputTokens: 1024,
+        maxOutputTokens: 2048,
         abortSignal: AbortSignal.timeout(60_000),
       });
       return {
-        ...output,
-        area: config.areas.resolve(output.area)?.id ?? config.areas.fallback.id,
+        skip: output.skip,
+        entries: output.entries.map((e) => ({
+          ...e,
+          area: config.areas.resolve(e.area)?.id ?? config.areas.fallback.id,
+        })),
       };
     } catch (error) {
       if (!NoObjectGeneratedError.isInstance(error)) throw error;
@@ -99,25 +128,26 @@ function systemPrompt(config: Config): string {
   const exampleArea = config.areas.ids[0];
   return `You write end-user changelog entries for ${config.product}.
 
-From a PR title and diff, produce a single changelog entry in three lengths (short, medium, long), all describing the same change in the same plain, user-facing style.
+From a PR title and diff, identify each DISTINCT user-facing change and write one entry for each, in three lengths (short, medium, long). A small PR usually has one entry; a larger PR may have several. Do not split a single change into multiple entries, and do not merge unrelated changes into one.
 
-Rules:
-- Describe observable behavior, not implementation. No commit-type prefixes, no file names, no internal module names.
+For each entry:
+- Classify its type as one of: ${TYPE_IDS.join(", ")}.
 - Pick the single best-fitting product area id from: ${config.areas.ids.join(", ")}.
-- If the PR has no user-facing change (chore, pure refactor, tests, CI, dependency bumps), set skip=true and leave the text fields empty.
+- Describe observable behavior, not implementation. No commit-type prefixes, no file names, no internal module names.
+
+If the PR has no user-facing change (chore, pure refactor, tests, CI, dependency bumps), set skip=true and entries=[].
 
 Respond with JSON only, matching this shape:
 {
   "skip": false,
-  "area": "${exampleArea}",
-  "short": "one terse line, ~6-10 words",
-  "medium": "one sentence, ~15-25 words",
-  "long": "one or two sentences, ~30-50 words"
+  "entries": [
+    { "area": "${exampleArea}", "type": "feature", "short": "one terse line", "medium": "one sentence", "long": "one or two sentences" }
+  ]
 }`;
 }
 
 function userPrompt(title: string, diff: string): string {
   const MAX_DIFF = 60_000;
   const clipped = diff.length > MAX_DIFF ? `${diff.slice(0, MAX_DIFF)}\n... [diff truncated]` : diff;
-  return `PR title: ${title}\n\nUnified diff:\n${clipped}\n\nReturn the changelog entry as JSON.`;
+  return `PR title: ${title}\n\nUnified diff:\n${clipped}\n\nReturn the changelog entries as JSON.`;
 }

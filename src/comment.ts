@@ -4,7 +4,7 @@
 // <length>` without re-calling the model (what the human saw is what gets added).
 
 import type { Areas } from "./areas";
-import type { ChangelogDraft } from "./llm";
+import { typeLabel, type ChangelogDraft } from "./llm";
 
 export const MARKER = "<!-- 0xff-changelog -->";
 const DATA_PREFIX = "<!-- 0xff-changelog-data:";
@@ -14,37 +14,38 @@ const DATA_SUFFIX = "-->";
 export function renderProposal(draft: ChangelogDraft, areas: Areas): string {
   // base64 so option text containing "-->" cannot truncate the data block early.
   const data = `${DATA_PREFIX} ${Buffer.from(JSON.stringify(draft), "utf8").toString("base64")} ${DATA_SUFFIX}`;
-  if (draft.skip) {
+  if (draft.skip || draft.entries.length === 0) {
     return [
       MARKER,
       "",
       "**No changelog entry needed.** This PR looks like it has no user-facing change, so I added the `no-changelog` label and the merge gate is satisfied.",
       "",
-      "If that is wrong, remove the label and comment `/changelog <area>: your wording` to add one.",
+      "If that is wrong, comment `/changelog <area>: your wording` to add one.",
       data,
     ].join("\n");
   }
-  const heading = areas.byId(draft.area).heading;
+  const n = draft.entries.length;
+  const list = draft.entries
+    .map((e, i) => `${i + 1}. **${areas.byId(e.area).heading}** · _${typeLabel(e.type)}_\n   ${e.medium}`)
+    .join("\n");
+  const lengths = draft.entries
+    .map((e, i) => `${i + 1}. **short:** ${e.short}\n   **long:** ${e.long}`)
+    .join("\n\n");
   const areaList = areas.list.map((a) => `- \`${a.id}\`: ${a.heading}`).join("\n");
   return [
     MARKER,
     "",
-    "Proposed changelog wordings.",
+    `**Proposed changelog** (${n} entr${n === 1 ? "y" : "ies"}):`,
     "",
-    `**Area: ${heading}**`,
+    list,
     "",
-    "**Short:**",
-    draft.short,
+    "Comment `/changelog [short|med|long]` to add them, `/changelog <area>: custom wording` for your own, or `/changelog skip`. You can also edit `CHANGELOG.md` directly; this never overwrites hand-edits.",
     "",
-    "**Medium:**",
-    draft.medium,
+    "<details><summary>Short and long wordings</summary>",
     "",
-    "**Long:**",
-    draft.long,
+    lengths,
     "",
-    "---",
-    "",
-    "Comment `/changelog [short|med|long]` to apply one, `/changelog <area>: custom wording` for your own, or `/changelog skip`. You can also edit `CHANGELOG.md` directly; this never overwrites hand-edits.",
+    "</details>",
     "",
     "<details><summary>Areas</summary>",
     "",
