@@ -27,13 +27,15 @@ describe("proposal comment data block", () => {
     expect(parseProposalData(renderProposal(tricky, testAreas))).toEqual(tricky);
   });
 
-  test("leads with the medium entry and the area, and includes every length and the apply command", () => {
+  test("shows the area, all three wordings, the command help, and the areas list", () => {
     const body = renderProposal(draft, testAreas);
-    expect(body).toContain("/changelog apply");
-    expect(body).toContain(testAreas.byId(draft.area).heading);
-    expect(body).toContain(`> ${draft.medium}`); // medium shown prominently as a blockquote
+    expect(body).toContain(`**Area: ${testAreas.byId(draft.area).heading}**`);
     expect(body).toContain(draft.short);
+    expect(body).toContain(draft.medium);
     expect(body).toContain(draft.long);
+    expect(body).toContain("/changelog");
+    expect(body).toContain("<summary>Areas</summary>");
+    expect(body).toContain("`cli`"); // area ids listed for the custom-wording form
   });
 
   test("returns undefined for a comment without the marker", () => {

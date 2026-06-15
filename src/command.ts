@@ -1,21 +1,27 @@
 // Parses the `/changelog` command a human types in a PR comment to finalize an
 // entry. The grammar is deliberately small:
 //
-//   /changelog apply                 → add the medium drafted entry
-//   /changelog apply short|long      → add a specific drafted length
+//   /changelog short|med|long        → add a specific drafted length (med = medium)
+//   /changelog                       → add the medium drafted entry
 //   /changelog <area>: <text>        → add custom text under <area>
 //   /changelog <text>                → add custom text under the drafted area
 //   /changelog skip                  → no changelog entry needed
 //
-// The leading `apply` keyword is optional sugar. Only the first line that starts
-// with the trigger is read, so quoting the command in a reply is ignored.
+// A leading `apply` keyword is accepted as optional sugar. Only the first line
+// that starts with the trigger is read, so quoting the command in a reply is
+// ignored.
 
 import type { Areas } from "./areas";
 
 export const TRIGGER = "/changelog";
 
 export type Length = "short" | "medium" | "long";
-const LENGTHS: readonly Length[] = ["short", "medium", "long"];
+const LENGTH_TOKENS: Record<string, Length> = {
+  short: "short",
+  medium: "medium",
+  med: "medium",
+  long: "long",
+};
 
 export type Command =
   | { kind: "length"; length: Length }
@@ -38,7 +44,8 @@ export function parseCommand(body: string, areas: Areas): Command | undefined {
 
   const lower = rest.toLowerCase();
   if (lower === "skip") return { kind: "skip" };
-  if (isLength(lower)) return { kind: "length", length: lower };
+  const length = LENGTH_TOKENS[lower];
+  if (length) return { kind: "length", length };
 
   const colon = rest.indexOf(":");
   if (colon !== -1) {
@@ -49,8 +56,4 @@ export function parseCommand(body: string, areas: Areas): Command | undefined {
     }
   }
   return { kind: "text", text: rest };
-}
-
-function isLength(value: string): value is Length {
-  return (LENGTHS as readonly string[]).includes(value);
 }

@@ -22,6 +22,11 @@ describe("parseCommand", () => {
     expect(parse("/changelog long")).toEqual({ kind: "length", length: "long" });
   });
 
+  test("med is an alias for medium", () => {
+    expect(parse("/changelog med")).toEqual({ kind: "length", length: "medium" });
+    expect(parse("/changelog medium")).toEqual({ kind: "length", length: "medium" });
+  });
+
   test("skip is recognized", () => {
     expect(parse("/changelog skip")).toEqual({ kind: "skip" });
   });
