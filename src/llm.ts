@@ -8,7 +8,7 @@
 // product line and areas come from the consuming repo's bot.yml.
 
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { generateObject, NoObjectGeneratedError } from "ai";
+import { generateText, NoObjectGeneratedError, Output } from "ai";
 import { z } from "zod";
 import type { Config } from "./config";
 
@@ -43,23 +43,21 @@ export async function draftChangelogOptions(
   });
 
   // json_object mode is not grammar-constrained, so the model occasionally samples
-  // JSON that fails validation. temperature 0 minimises that, repairText salvages
-  // near-misses (fences, prose), and a few retries cover the residue. Real errors
-  // (auth, balance, timeout) are not retried.
+  // JSON that fails validation. temperature 0 minimises that and a few retries
+  // cover the residue. Real errors (auth, balance, timeout) are not retried.
   let lastError: unknown;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const { object } = await generateObject({
+      const { output } = await generateText({
         model,
-        schema,
+        output: Output.object({ schema }),
         system: systemPrompt(config),
         prompt: userPrompt(title, diff),
         temperature: 0,
         maxOutputTokens: 1024,
         abortSignal: AbortSignal.timeout(60_000),
-        experimental_repairText: repairJson,
       });
-      return object as ChangelogDraft;
+      return output as ChangelogDraft;
     } catch (error) {
       if (!NoObjectGeneratedError.isInstance(error)) throw error;
       lastError = error;
@@ -69,15 +67,6 @@ export async function draftChangelogOptions(
     }
   }
   throw lastError;
-}
-
-/** Salvage a JSON object from model output wrapped in code fences or prose. */
-async function repairJson({ text }: { text: string }): Promise<string | null> {
-  const unfenced = text.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
-  const start = unfenced.indexOf("{");
-  const end = unfenced.lastIndexOf("}");
-  if (start === -1 || end <= start) return null;
-  return unfenced.slice(start, end + 1);
 }
 
 // The drafter's deployment config, declared and validated at the boundary. All
