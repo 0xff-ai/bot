@@ -42,23 +42,42 @@ export async function draftChangelogOptions(
     long: z.string().describe("one or two sentences with the user-facing detail, roughly 30-50 words; empty when skip"),
   });
 
-  try {
-    const { object } = await generateObject({
-      model,
-      schema,
-      system: systemPrompt(config),
-      prompt: userPrompt(title, diff),
-      maxOutputTokens: 1024,
-    });
-    return object as ChangelogDraft;
-  } catch (error) {
-    if (NoObjectGeneratedError.isInstance(error)) {
-      console.error("draft failed: model output did not match schema");
-      console.error("cause:", error.cause instanceof Error ? error.cause.message : String(error.cause));
-      console.error("raw model response:", error.text ?? "(none)");
+  // json_object mode is not grammar-constrained, so the model occasionally samples
+  // JSON that fails validation. temperature 0 minimises that, repairText salvages
+  // near-misses (fences, prose), and a few retries cover the residue. Real errors
+  // (auth, balance, timeout) are not retried.
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const { object } = await generateObject({
+        model,
+        schema,
+        system: systemPrompt(config),
+        prompt: userPrompt(title, diff),
+        temperature: 0,
+        maxOutputTokens: 1024,
+        abortSignal: AbortSignal.timeout(60_000),
+        experimental_repairText: repairJson,
+      });
+      return object as ChangelogDraft;
+    } catch (error) {
+      if (!NoObjectGeneratedError.isInstance(error)) throw error;
+      lastError = error;
+      console.error(`draft attempt ${attempt + 1} did not match schema`);
+      console.error("  cause:", error.cause instanceof Error ? error.cause.message : String(error.cause));
+      console.error("  raw model response:", error.text ?? "(none)");
     }
-    throw error;
   }
+  throw lastError;
+}
+
+/** Salvage a JSON object from model output wrapped in code fences or prose. */
+async function repairJson({ text }: { text: string }): Promise<string | null> {
+  const unfenced = text.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
+  const start = unfenced.indexOf("{");
+  const end = unfenced.lastIndexOf("}");
+  if (start === -1 || end <= start) return null;
+  return unfenced.slice(start, end + 1);
 }
 
 // The drafter's deployment config, declared and validated at the boundary. All
