@@ -5,7 +5,7 @@
 
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
-import { Areas, type Area } from "./areas";
+import { Areas, INTERNAL_AREA, type Area } from "./areas";
 
 type NonEmpty<T> = [T, ...T[]];
 
@@ -34,11 +34,16 @@ export type Config = {
 
 export function parseConfig(raw: string): Config {
   const data = configSchema.parse(parseYaml(raw));
+  if (data.areas.some((a) => a.id === INTERNAL_AREA.id)) {
+    throw new Error(`bot.yml: "${INTERNAL_AREA.id}" is a reserved area id the bot appends automatically; remove it`);
+  }
   return {
     product: data.product,
     maintainers: data.maintainers,
-    // zod's .min(1) above proves non-emptiness at runtime; assert it into the type.
-    areas: new Areas(data.areas as NonEmpty<Area>),
+    // The bot-owned internal tier is appended last so non-user-facing entries
+    // sort after the consumer's areas. zod's .min(1) guarantees a first element;
+    // naming it keeps the result a non-empty tuple for the Areas constructor.
+    areas: new Areas([data.areas[0]!, ...data.areas.slice(1), INTERNAL_AREA]),
   };
 }
 

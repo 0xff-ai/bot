@@ -12,6 +12,36 @@ export type Area = {
   aliases: string[];
 };
 
+/**
+ * Bot-owned tier appended after every consuming repo's product areas. Non-user-
+ * facing changes (refactors, tests, CI, build, chores, dependency bumps, docs)
+ * land here, so the changelog documents everything while keeping user-facing
+ * work first and the maintenance work demoted to the end. Injected in config.ts
+ * rather than required in bot.yml (areas stay the consumer's vocabulary); this
+ * makes `internal` a reserved area id.
+ */
+export const INTERNAL_AREA: Area = {
+  id: "internal",
+  heading: "Internal & maintenance",
+  aliases: [
+    "internal",
+    "maintenance",
+    "refactor",
+    "refactoring",
+    "chore",
+    "chores",
+    "ci",
+    "build",
+    "test",
+    "tests",
+    "deps",
+    "dependencies",
+    "docs",
+    "documentation",
+    "tooling",
+  ],
+};
+
 export class Areas {
   private readonly byIdMap: Map<string, Area>;
 

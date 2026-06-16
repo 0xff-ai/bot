@@ -1,0 +1,32 @@
+[
+  {
+    "repo": "0xff-ai/omnifs",
+    "pr": 74,
+    "title": "feat(db): generic database provider with read-only SQLite backend",
+    "expect": "feature: a new user-facing provider. One entry, area providers/runtime."
+  },
+  {
+    "repo": "0xff-ai/omnifs",
+    "pr": 106,
+    "title": "fix(fuse): preserve learned file sizes",
+    "expect": "fix: a behavior users relied on was broken and now works. One entry, type Fix."
+  },
+  {
+    "repo": "0xff-ai/omnifs",
+    "pr": 111,
+    "title": "refactor(dns): extract DoH transport behind a provider-local trait",
+    "expect": "pure internal refactor: skip=true (no user-facing change)."
+  },
+  {
+    "repo": "0xff-ai/omnifs",
+    "pr": 109,
+    "title": "docs(sdk): document provider authoring model",
+    "expect": "docs-only: skip=true."
+  },
+  {
+    "repo": "0xff-ai/omnifs",
+    "pr": 76,
+    "title": "feat!: ship omnifs on npm with OAuth and a managed mount lifecycle",
+    "expect": "breaking + multi-change: tests the breaking type and whether genuinely-separate changes (npm install, OAuth, mount lifecycle) stay as a few entries without over-splitting."
+  }
+]

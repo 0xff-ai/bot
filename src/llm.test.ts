@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { supportsJsonSchema, typeLabel } from "./llm";
+import { supportsJsonSchema, temperatureFor, typeLabel } from "./llm";
 
 describe("supportsJsonSchema", () => {
   test("true for verified json_schema families", () => {
@@ -15,11 +15,32 @@ describe("supportsJsonSchema", () => {
   });
 });
 
+describe("temperatureFor", () => {
+  test("1 for Moonshot code models that reject temperature 0", () => {
+    expect(temperatureFor("kimi-k2.7-code")).toBe(1);
+    expect(temperatureFor("KIMI-K2.7-CODE")).toBe(1);
+  });
+
+  test("0 (deterministic) for everything else", () => {
+    for (const m of ["mimo-v2.5", "kimi-k2.6", "glm-5.1", "deepseek-v4-flash", ""]) {
+      expect(temperatureFor(m)).toBe(0);
+    }
+  });
+});
+
 describe("typeLabel", () => {
   test("canonicalises known aliases", () => {
     expect(typeLabel("feat")).toBe("Feature");
     expect(typeLabel("BUGFIX")).toBe("Fix");
     expect(typeLabel(" Perf ")).toBe("Performance");
+  });
+
+  test("labels internal-tier types", () => {
+    expect(typeLabel("refactor")).toBe("Refactor");
+    expect(typeLabel("docs")).toBe("Docs");
+    expect(typeLabel("tests")).toBe("Test");
+    expect(typeLabel("ci")).toBe("CI");
+    expect(typeLabel("deps")).toBe("Dependencies");
   });
 
   test("falls back to Change for unknown types", () => {

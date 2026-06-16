@@ -14,13 +14,13 @@ const DATA_SUFFIX = "-->";
 export function renderProposal(draft: ChangelogDraft, areas: Areas): string {
   // base64 so option text containing "-->" cannot truncate the data block early.
   const data = `${DATA_PREFIX} ${Buffer.from(JSON.stringify(draft), "utf8").toString("base64")} ${DATA_SUFFIX}`;
-  if (draft.skip || draft.entries.length === 0) {
+  if (draft.entries.length === 0) {
+    // The drafter never skips, so this only happens if drafting failed. Invite a
+    // manual entry rather than silently leaving the PR undocumented.
     return [
       MARKER,
       "",
-      "**No changelog entry needed.** This PR looks like it has no user-facing change, so I added the `no-changelog` label and the merge gate is satisfied.",
-      "",
-      "If that is wrong, comment `/changelog <area>: your wording` to add one.",
+      "I couldn't draft a changelog entry for this PR. Comment `/changelog <area>: your wording` to add one.",
       data,
     ].join("\n");
   }

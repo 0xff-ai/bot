@@ -1,18 +1,12 @@
-# Copy to .github/bot.yml in the consuming repo. Parsing is strict: unknown keys
-# fail, so a typo surfaces loudly instead of being silently ignored.
+# Eval fixture: a copy of a real consumer bot.yml (omnifs) so draft-eval.ts can
+# exercise the drafter against the same product line and areas the bot sees in
+# production. Not used by the action; only by `bun eval/draft-eval.ts`.
 
-# One-line product description fed to the changelog drafter.
 product: omnifs, a projected filesystem that mirrors external services into local paths
 
-# Logins whose `/changelog` always applies and whose pick wins over the author's.
 maintainers:
   - raulk
 
-# Changelog areas, in the order their `### <heading>` subsections appear in
-# CHANGELOG.md. List only your product's user-facing areas; the bot appends its
-# own `Internal & maintenance` area last for non-user-facing work (refactors,
-# tests, CI, chores, deps, docs), so `internal` is reserved — don't define it.
-# `aliases` let humans name an area loosely in `/changelog <area>: ...`.
 areas:
   - id: providers
     heading: Providers & projected paths
@@ -22,7 +16,7 @@ areas:
     aliases: [runtime, daemon, omnifsd, mount, mounts, fuse, container]
   - id: cli
     heading: CLI & workflow
-    aliases: [cli, command, commands, workflow, shell]
+    aliases: [cli, command, commands, workflow, omnifs dev, shell]
   - id: caching
     heading: Caching & performance
     aliases: [cache, caching, performance, perf, speed, memory]

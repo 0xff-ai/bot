@@ -30,9 +30,9 @@ export class GitHub {
     return { owner: this.owner, repo: this.repo };
   }
 
-  async prTitle(number: number): Promise<string> {
+  async prMeta(number: number): Promise<{ title: string; body: string }> {
     const { data } = await this.api.rest.pulls.get({ ...this.base, pull_number: number });
-    return data.title;
+    return { title: data.title, body: data.body ?? "" };
   }
 
   async prDiff(number: number): Promise<string> {

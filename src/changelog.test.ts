@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { appendBulletsToUnreleased, parseChangelog, withUnreleased, type AreaBullet } from "./changelog";
+import { parseConfig } from "./config";
 import { testAreas } from "./fixtures";
 
 const append = (body: string, bullets: AreaBullet[]) =>
@@ -80,5 +81,19 @@ describe("appendBulletsToUnreleased", () => {
     const reparsed = parseChangelog(next.raw);
     expect(reparsed.unreleasedBody).toContain("### CLI & workflow");
     expect(reparsed.unreleasedBody).toContain("- new flag");
+  });
+
+  test("demotes an internal entry to the appended Internal & maintenance section, last", () => {
+    const areas = parseConfig("product: x\nareas:\n  - id: providers\n    heading: Providers\n").areas;
+    const body = appendBulletsToUnreleased(
+      "",
+      [
+        { area: "internal", text: "**Refactor:** DoH transport moved behind a trait" },
+        { area: "providers", text: "**Feature:** db provider mounts SQLite" },
+      ],
+      areas,
+    );
+    expect(body.indexOf("### Providers")).toBeLessThan(body.indexOf("### Internal & maintenance"));
+    expect(body).toContain("- **Refactor:** DoH transport moved behind a trait");
   });
 });

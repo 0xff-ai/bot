@@ -4,7 +4,6 @@ import { testAreas } from "./fixtures";
 import { typeLabel, type ChangelogDraft } from "./llm";
 
 const draft: ChangelogDraft = {
-  skip: false,
   entries: [
     {
       area: "providers",
@@ -28,14 +27,15 @@ describe("proposal comment data block", () => {
     expect(parseProposalData(renderProposal(draft, testAreas))).toEqual(draft);
   });
 
-  test("round-trips a skip draft", () => {
-    const skip: ChangelogDraft = { skip: true, entries: [] };
-    expect(parseProposalData(renderProposal(skip, testAreas))).toEqual(skip);
+  test("renders an empty-entries draft as a manual-entry invite that still round-trips", () => {
+    const empty: ChangelogDraft = { entries: [] };
+    const body = renderProposal(empty, testAreas);
+    expect(body).toContain("couldn't draft");
+    expect(parseProposalData(body)).toEqual(empty);
   });
 
   test("survives text containing the comment terminator and unicode", () => {
     const tricky: ChangelogDraft = {
-      skip: false,
       entries: [{ ...draft.entries[0]!, medium: "routes /a --> /b now resolve, cafe included" }],
     };
     expect(parseProposalData(renderProposal(tricky, testAreas))).toEqual(tricky);
