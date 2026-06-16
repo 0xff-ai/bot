@@ -140,25 +140,19 @@ export class GitHub {
     return data.labels.some((l) => (typeof l === "string" ? l : l.name) === label);
   }
 
-  /**
-   * Report a check-run conclusion on a commit. `action_required` blocks a required
-   * check while rendering as an orange "action required" state rather than a red
-   * failure; `success` clears it.
-   */
-  async reportCheck(
-    name: string,
+  /** Report the merge gate as a commit status context. */
+  async reportStatus(
+    context: string,
     headSha: string,
-    conclusion: "success" | "action_required",
-    title: string,
-    summary: string,
+    state: "success" | "pending",
+    description: string,
   ): Promise<void> {
-    await this.api.rest.checks.create({
+    await this.api.rest.repos.createCommitStatus({
       ...this.base,
-      name,
-      head_sha: headSha,
-      status: "completed",
-      conclusion,
-      output: { title, summary },
+      sha: headSha,
+      state,
+      context,
+      description,
     });
   }
 }

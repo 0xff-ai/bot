@@ -4,7 +4,7 @@ name: Changelog
 # pull_request and issue_comment (see README). Three jobs, each guarded by the
 # event that should drive it:
 #   propose   (pull_request)  draft an entry and post the sticky proposal comment
-#   gate      (pull_request)  fail until CHANGELOG.md changes or `no-changelog` is set
+#   gate      (pull_request)  hold a pending status until CHANGELOG.md changes or `no-changelog` is set
 #   apply     (issue_comment) commit the chosen entry to the PR branch on /changelog
 
 on:
@@ -32,7 +32,7 @@ jobs:
       OPENAI_MODEL: ${{ secrets.OPENAI_MODEL || vars.OPENAI_MODEL }}
     steps:
       - uses: actions/checkout@v4
-      - uses: 0xff-ai/bot@v1
+      - uses: 0xff-ai/bot@main
         with:
           command: propose
           pr: ${{ github.event.pull_request.number }}
@@ -43,14 +43,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      checks: write
+      statuses: write
       pull-requests: read
     env:
       GITHUB_TOKEN: ${{ github.token }}
       BOT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
       - uses: actions/checkout@v4
-      - uses: 0xff-ai/bot@v1
+      - uses: 0xff-ai/bot@main
         with:
           command: gate
           pr: ${{ github.event.pull_request.number }}
@@ -79,7 +79,7 @@ jobs:
         run: |
           git config user.name "0xff-changelog-bot"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-      - uses: 0xff-ai/bot@v1
+      - uses: 0xff-ai/bot@main
         with:
           command: apply
           pr: ${{ github.event.issue.number }}

@@ -63,27 +63,26 @@ export class ChangelogBot {
   }
 
   /**
-   * Gate: report the `changelog` check on the PR head. Blocks merge with an
-   * orange `action_required` (not a red failure) until CHANGELOG.md changes or the
-   * `no-changelog` label is set.
+   * Gate: report the `changelog` status on the PR head. Blocks merge as a
+   * pending required status until CHANGELOG.md changes or the `no-changelog`
+   * label is set, while keeping the workflow job green.
    */
   async gate(pr: number, headSha: string): Promise<void> {
     const satisfied =
       (await this.github.prChangedFiles(pr)).includes(CHANGELOG) ||
       (await this.github.hasLabel(pr, SKIP_LABEL));
     if (satisfied) {
-      await this.github.reportCheck("changelog", headSha, "success", "Changelog entry present", "This PR updates CHANGELOG.md (or carries the `no-changelog` label).");
+      await this.github.reportStatus("changelog", headSha, "success", "Changelog entry present or explicitly skipped");
       console.log(`#${pr}: changelog present; gate satisfied`);
       return;
     }
-    await this.github.reportCheck(
+    await this.github.reportStatus(
       "changelog",
       headSha,
-      "action_required",
+      "pending",
       "Changelog entry required",
-      "Add one by commenting `/changelog apply` (or `/changelog short`/`long` to pick a length), or apply the `no-changelog` label. Merge stays blocked until then.",
     );
-    console.log(`#${pr}: changelog missing; gate set to action_required`);
+    console.log(`#${pr}: changelog missing; gate set to pending`);
   }
 
   /** Comment stage: act on a `/changelog ...` command from an authorized user. */

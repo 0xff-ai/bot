@@ -6,7 +6,7 @@ A changelog bot for repos that keep a [Keep a Changelog](https://keepachangelog.
 
 - **Propose** (on `pull_request`): unless the PR already edits `CHANGELOG.md`, the bot drafts at least one entry per PR (each typed, area-classified, and offered in three lengths) and posts a sticky comment. Nothing is skipped: non-user-facing work (refactors, tests, CI, build, chores, dependency bumps, docs) is documented too, demoted to a bot-appended **Internal & maintenance** section at the end. A maintainer can still force-skip a PR with `/changelog skip`.
 - **Apply** (on `issue_comment`): the author or a maintainer replies with a `/changelog` command and the bot commits the entry to the PR branch under its area heading. Fork PRs can't be pushed to, so the bot posts the exact commands a maintainer runs locally.
-- **Gate** (on `pull_request`): reports a `changelog` check that blocks merge until `CHANGELOG.md` changes (or the `no-changelog` label is set). It uses an `action_required` conclusion, so a missing entry shows as an orange "action required" state rather than a red failure.
+- **Gate** (on `pull_request`): reports a `changelog` commit status that blocks merge until `CHANGELOG.md` changes (or the `no-changelog` label is set). A missing entry leaves that status pending, so the workflow job stays green while branch protection still blocks merge.
 
 The entry is added additively under its `### <area>` subsection: existing lines are never rewritten, so hand-edits survive and re-applying the same entry is a no-op.
 
@@ -37,11 +37,11 @@ Only the PR author or a maintainer (repo owner/member/collaborator, or a login i
        types: [created]
    jobs:
      changelog:
-       uses: 0xff-ai/bot/.github/workflows/changelog.yml@v1
+       uses: 0xff-ai/bot/.github/workflows/changelog.yml@main
        secrets: inherit
    ```
 
-5. Add the **`changelog`** check (reported by the `gate` job) to the branch's required status checks so it actually blocks merge. The job itself stays green; the `changelog` check is what blocks, as an orange `action_required` until an entry exists.
+5. Add the **`changelog`** status context (reported by the `gate` job) to the branch's required status checks so it actually blocks merge. The job itself stays green; the `changelog` status is what stays pending until an entry exists.
 
 ## Config (`.github/bot.yml`)
 
