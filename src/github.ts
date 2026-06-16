@@ -36,13 +36,22 @@ export class GitHub {
   }
 
   async prDiff(number: number): Promise<string> {
-    const res = await this.api.rest.pulls.get({
-      ...this.base,
-      pull_number: number,
-      mediaType: { format: "diff" },
-    });
-    // With the diff media type the response body is the unified diff text.
-    return res.data as unknown as string;
+    try {
+      const res = await this.api.rest.pulls.get({
+        ...this.base,
+        pull_number: number,
+        mediaType: { format: "diff" },
+      });
+      // With the diff media type the response body is the unified diff text.
+      return res.data as unknown as string;
+    } catch (error) {
+      // GitHub returns 406 for diffs over 20k lines. Fall back to the changed-
+      // file list so the drafter still has the PR shape; the title and PR
+      // description carry the rest.
+      if ((error as { status?: number }).status !== 406) throw error;
+      const files = await this.prChangedFiles(number);
+      return `[Full unified diff unavailable for this PR — it exceeds GitHub's API line limit. Changed files:]\n${files.join("\n")}`;
+    }
   }
 
   async prAuthorLogin(number: number): Promise<string> {
