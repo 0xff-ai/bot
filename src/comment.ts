@@ -56,6 +56,14 @@ export function renderProposal(draft: ChangelogDraft, areas: Areas): string {
   ].join("\n");
 }
 
+/**
+ * Render the applied comment: once the entry is committed, the sticky comment is
+ * edited down to just this confirmation, dropping the proposals and data block.
+ */
+export function renderApplied(message: string): string {
+  return [MARKER, "", message].join("\n");
+}
+
 /** Recover the drafted options from a proposal comment body, or undefined. */
 export function parseProposalData(body: string): ChangelogDraft | undefined {
   if (!body.includes(MARKER)) return undefined;

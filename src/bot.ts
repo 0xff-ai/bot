@@ -17,7 +17,7 @@
 import { match } from "ts-pattern";
 import { appendBulletsToUnreleased, parseChangelog, withUnreleased } from "./changelog";
 import { parseCommand, type Command } from "./command";
-import { MARKER, parseProposalData, renderProposal } from "./comment";
+import { MARKER, parseProposalData, renderApplied, renderProposal } from "./comment";
 import type { Config } from "./config";
 import type { GitHub } from "./github";
 import { draftChangelogOptions, typeLabel, type ChangelogDraft } from "./llm";
@@ -161,9 +161,12 @@ export class ChangelogBot {
     await this.repo.$`git commit -m ${`${COMMIT_PREFIX} add ${bullets.length === 1 ? "entry" : "entries"} for #${pr}`} --author=${`${id.name} <${id.email}>`}`;
     await this.repo.$`git push origin HEAD:${ref}`;
     const areas = [...new Set(bullets.map((b) => this.config.areas.byId(b.area).heading))].join(", ");
-    await this.github.postComment(
+    // Edit the sticky proposal comment in place rather than posting a reply: drop
+    // the proposals and leave just the applied confirmation.
+    await this.github.upsertComment(
       pr,
-      `Added ${bullets.length} changelog ${bullets.length === 1 ? "entry" : "entries"} (${areas}).`,
+      MARKER,
+      renderApplied(`Applied changelog: added ${bullets.length} ${bullets.length === 1 ? "entry" : "entries"} (${areas}).`),
     );
     console.log(`#${pr}: committed ${bullets.length} changelog ${bullets.length === 1 ? "entry" : "entries"}`);
   }
