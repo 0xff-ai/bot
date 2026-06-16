@@ -1,10 +1,12 @@
 // The changelog bot has two human-facing stages:
 //
-//   propose(pr):  on a feature PR, draft one entry per distinct user-facing change
-//                 (each typed and area-classified, in three lengths) and post them
-//                 as a sticky comment. Skipped when the PR already edits
-//                 CHANGELOG.md. A no-user-facing-change PR gets the `no-changelog`
-//                 label so the merge gate passes.
+//   propose(pr):  on every PR, draft at least one entry (each typed and area-
+//                 classified, in three lengths) and post them as a sticky comment.
+//                 Nothing is skipped: non-user-facing work (refactors, tests, CI,
+//                 chores, deps, docs) is documented under the bot-owned Internal &
+//                 maintenance area instead. Skipped only when the PR already edits
+//                 CHANGELOG.md. A maintainer can still force-skip with the manual
+//                 `/changelog skip` command (the `no-changelog` label).
 //
 //   apply(pr):    when the author or a maintainer comments `/changelog ...`, commit
 //                 the chosen entries to the PR's own branch under their areas. Fork
@@ -53,15 +55,10 @@ export class ChangelogBot {
       console.log(`#${pr}: proposal comment exists; leaving it intact`);
       return;
     }
-    const title = await this.github.prTitle(pr);
+    const { title, body } = await this.github.prMeta(pr);
     const diff = await this.github.prDiff(pr);
-    const draft = await draftChangelogOptions(this.config, title, diff);
+    const draft = await draftChangelogOptions(this.config, title, body, diff);
     await this.github.upsertComment(pr, MARKER, renderProposal(draft, this.config.areas));
-    if (draft.skip || draft.entries.length === 0) {
-      await this.label(pr);
-      console.log(`#${pr}: no user-facing change; labeled ${SKIP_LABEL}`);
-      return;
-    }
     console.log(`#${pr}: posted changelog proposal with ${draft.entries.length} entr${draft.entries.length === 1 ? "y" : "ies"}`);
   }
 
@@ -127,7 +124,7 @@ export class ChangelogBot {
     const draft = await this.recoverDraft(pr);
     return match(command)
       .with({ kind: "length" }, (c) => {
-        if (!draft || draft.skip) return [];
+        if (!draft) return [];
         return draft.entries
           .map((e) => {
             const text = e[c.length].trim();

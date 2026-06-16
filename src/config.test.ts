@@ -13,13 +13,20 @@ areas:
 `;
 
 describe("parseConfig", () => {
-  test("loads product, maintainers, and areas", () => {
+  test("loads product, maintainers, and areas, appending the internal tier last", () => {
     const config = parseConfig(VALID);
     expect(config.product).toBe("omnifs, a projected filesystem");
     expect(config.maintainers).toEqual(["raulk"]);
-    expect(config.areas.ids).toEqual(["providers", "cli"]);
+    // The bot appends its own `internal` area after the consumer's, so it sorts
+    // last and catches non-user-facing entries.
+    expect(config.areas.ids).toEqual(["providers", "cli", "internal"]);
     expect(config.areas.byId("providers").heading).toBe("Providers & projected paths");
-    expect(config.areas.fallback.id).toBe("cli");
+    expect(config.areas.byId("internal").heading).toBe("Internal & maintenance");
+    expect(config.areas.fallback.id).toBe("internal");
+  });
+
+  test("rejects a consumer area that collides with the reserved internal id", () => {
+    expect(() => parseConfig("product: x\nareas:\n  - id: internal\n    heading: Mine\n")).toThrow(/reserved area id/);
   });
 
   test("areas default to an empty alias list", () => {

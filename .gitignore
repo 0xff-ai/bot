@@ -1,2 +1,5 @@
 node_modules/
 *.log
+
+# Local model-eval artifacts (generated; contain live PR content)
+eval/out/
