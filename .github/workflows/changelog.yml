@@ -3,34 +3,21 @@ name: Changelog
 # Reusable workflow a consuming repo calls from a thin caller that triggers on
 # pull_request and issue_comment (see README). Three jobs, each guarded by the
 # event that should drive it:
-#   gate      (pull_request)  fail until CHANGELOG.md changes or `no-changelog` is set
 #   propose   (pull_request)  draft an entry and post the sticky proposal comment
+#   gate      (pull_request)  fail until CHANGELOG.md changes or `no-changelog` is set
 #   apply     (issue_comment) commit the chosen entry to the PR branch on /changelog
 
 on:
   workflow_call:
     secrets:
       OPENAI_API_KEY:
-        required: false
+        required: true
+      OPENAI_BASE_URL:
+        required: true
+      OPENAI_MODEL:
+        required: true
 
 jobs:
-  gate:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      checks: write
-      pull-requests: read
-    env:
-      GITHUB_TOKEN: ${{ github.token }}
-      BOT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: 0xff-ai/bot@v1
-        with:
-          command: gate
-          pr: ${{ github.event.pull_request.number }}
-
   propose:
     if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'release/')
     runs-on: ubuntu-latest
@@ -48,6 +35,24 @@ jobs:
       - uses: 0xff-ai/bot@v1
         with:
           command: propose
+          pr: ${{ github.event.pull_request.number }}
+
+  gate:
+    needs: propose
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: read
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      BOT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: 0xff-ai/bot@v1
+        with:
+          command: gate
           pr: ${{ github.event.pull_request.number }}
 
   apply:
