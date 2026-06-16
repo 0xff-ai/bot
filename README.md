@@ -14,8 +14,8 @@ The entry is added additively under its `### <area>` subsection: existing lines 
 
 | Comment | Effect |
 |---|---|
-| `/changelog apply` | Add the drafted medium entry |
-| `/changelog apply short` / `long` | Add a specific drafted length |
+| `/changelog apply` | Add the drafted entries as-is (medium length) |
+| `/changelog apply short` / `long` | Add the drafted entries at a specific length |
 | `/changelog <area>: your wording` | Add custom text under an area |
 | `/changelog skip` | Label `no-changelog`; no entry needed |
 

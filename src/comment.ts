@@ -39,7 +39,7 @@ export function renderProposal(draft: ChangelogDraft, areas: Areas): string {
     "",
     list,
     "",
-    "Comment `/changelog [short|med|long]` to add them, `/changelog <area>: custom wording` for your own, or `/changelog skip`. You can also edit `CHANGELOG.md` directly; this never overwrites hand-edits.",
+    "Comment `/changelog apply` to add the entries above as-is, `/changelog short` or `/changelog long` to pick a length, `/changelog <area>: custom wording` for your own, or `/changelog skip`. You can also edit `CHANGELOG.md` directly; this never overwrites hand-edits.",
     "",
     "<details><summary>Short and long wordings</summary>",
     "",

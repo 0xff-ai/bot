@@ -81,7 +81,7 @@ export class ChangelogBot {
       headSha,
       "action_required",
       "Changelog entry required",
-      "Add one by commenting `/changelog [short|med|long]`, or apply the `no-changelog` label. Merge stays blocked until then.",
+      "Add one by commenting `/changelog apply` (or `/changelog short`/`long` to pick a length), or apply the `no-changelog` label. Merge stays blocked until then.",
     );
     console.log(`#${pr}: changelog missing; gate set to action_required`);
   }

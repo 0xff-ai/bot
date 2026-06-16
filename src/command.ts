@@ -1,15 +1,17 @@
 // Parses the `/changelog` command a human types in a PR comment to finalize an
 // entry. The grammar is deliberately small:
 //
-//   /changelog short|med|long        → add a specific drafted length (med = medium)
-//   /changelog                       → add the medium drafted entry
+//   /changelog apply                 → add the drafted entries (medium length)
+//   /changelog apply short|med|long  → add the drafted entries at that length
+//   /changelog short|med|long        → same, with the `apply` keyword left off
+//   /changelog                       → bare trigger, same as `/changelog apply`
 //   /changelog <area>: <text>        → add custom text under <area>
 //   /changelog <text>                → add custom text under the drafted area
 //   /changelog skip                  → no changelog entry needed
 //
-// A leading `apply` keyword is accepted as optional sugar. Only the first line
-// that starts with the trigger is read, so quoting the command in a reply is
-// ignored.
+// `apply` is the advertised "take your suggestion as-is" verb; the length
+// keyword may also stand alone. Only the first line that starts with the trigger
+// is read, so quoting the command in a reply is ignored.
 
 import type { Areas } from "./areas";
 

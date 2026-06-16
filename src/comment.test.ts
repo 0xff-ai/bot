@@ -45,6 +45,8 @@ describe("proposal comment data block", () => {
     const body = renderProposal(draft, testAreas);
     expect(body).toContain("(2 entries)");
     expect(body).toContain("/changelog");
+    // The low-effort "take your suggestion" path must be visible in the comment.
+    expect(body).toContain("/changelog apply");
     for (const e of draft.entries) {
       expect(body).toContain(testAreas.byId(e.area).heading);
       expect(body).toContain(typeLabel(e.type));
