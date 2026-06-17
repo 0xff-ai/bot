@@ -41,19 +41,21 @@ describe("proposal comment data block", () => {
     expect(parseProposalData(renderProposal(tricky, testAreas))).toEqual(tricky);
   });
 
-  test("renders each entry in copy-back type(area): wording form, with the commands block", () => {
+  test("renders each entry as a readable bullet, with a commands block listing types and areas", () => {
     const body = renderProposal(draft, testAreas);
     expect(body).toContain("(2 entries)");
     // The low-effort "take your suggestion" path must be visible in the comment.
     expect(body).toContain("/changelog apply");
     for (const e of draft.entries) {
-      // The proposed line is exactly what a maintainer would type back.
-      expect(body).toContain(`${e.type}(${e.area}): ${e.medium}`);
+      // A proper bullet with the area heading, type label, and wording (not a
+      // non-wrapping code block).
+      expect(body).toContain(`- **${testAreas.byId(e.area).heading}** (_${typeLabel(e.type)}_): ${e.medium}`);
     }
-    // The summary block carries command examples.
+    // The summary block carries command examples plus the type and area lists.
     expect(body).toContain("<summary>Commands</summary>");
     expect(body).toContain("feat(");
-    // Areas are listed for reference inside the block.
+    expect(body).toContain("Types:");
+    expect(body).toContain("`feature`");
     expect(body).toContain(`\`${testAreas.list[0]!.id}\``);
   });
 

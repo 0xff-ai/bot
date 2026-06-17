@@ -5,7 +5,7 @@
 // gets added).
 
 import type { Areas } from "./areas";
-import type { ChangelogDraft } from "./llm";
+import { TYPE_IDS, typeLabel, type ChangelogDraft } from "./llm";
 
 export const MARKER = "<!-- 0xff-changelog -->";
 const DATA_PREFIX = "<!-- 0xff-changelog-data:";
@@ -26,9 +26,11 @@ export function renderProposal(draft: ChangelogDraft, areas: Areas): string {
     ].join("\n");
   }
   const n = draft.entries.length;
-  // Entries in the same shape you'd type back, so they copy straight into a
-  // custom `/changelog`.
-  const entryLines = draft.entries.map((e) => `${e.type}(${e.area}): ${e.medium}`).join("\n");
+  // A readable bulleted list (wraps naturally, unlike a code block). The
+  // typeable `type(area): wording` shape lives in the Commands block instead.
+  const bullets = draft.entries
+    .map((e) => `- **${areas.byId(e.area).heading}** (_${typeLabel(e.type)}_): ${e.medium}`)
+    .join("\n");
   const exampleArea = areas.list[0]!.id;
   const commandExamples = [
     "/changelog apply",
@@ -37,15 +39,14 @@ export function renderProposal(draft: ChangelogDraft, areas: Areas): string {
     `feat(${exampleArea}): your first entry`,
     `fix(${exampleArea}): your second entry`,
   ].join("\n");
+  const typeList = TYPE_IDS.map((t) => `\`${t}\``).join(", ");
   const areaList = areas.list.map((a) => `\`${a.id}\``).join(", ");
   return [
     MARKER,
     "",
     `**Proposed changelog** (${n} entr${n === 1 ? "y" : "ies"}):`,
     "",
-    "```",
-    entryLines,
-    "```",
+    bullets,
     "",
     "`/changelog apply` to add these, or `/changelog` with your own `type(area): wording` lines. `/changelog skip` to omit.",
     "",
@@ -55,6 +56,7 @@ export function renderProposal(draft: ChangelogDraft, areas: Areas): string {
     commandExamples,
     "```",
     "",
+    `Types: ${typeList}.`,
     `Areas: ${areaList}.`,
     "",
     "</details>",

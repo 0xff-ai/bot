@@ -25,7 +25,7 @@ import type { Config } from "./config";
 /** Entry classification, shown as a `**Label:**` prefix on the bullet. */
 // User-facing types describe what a user notices; internal types describe
 // maintenance work demoted to the Internal & maintenance section.
-const TYPE_IDS = [
+export const TYPE_IDS = [
   "feature", "fix", "improvement", "performance", "breaking", "deprecation", "removal", "security",
   "refactor", "docs", "test", "chore", "ci", "build", "dependencies",
 ] as const;
