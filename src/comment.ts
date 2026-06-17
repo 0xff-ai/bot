@@ -1,16 +1,17 @@
 // The bot's proposal lives in one sticky PR comment, marked with MARKER. It shows
-// the three length options in human-readable form plus a hidden base64 data block,
-// so the apply stage can recover the exact drafted text for `/changelog apply
-// <length>` without re-calling the model (what the human saw is what gets added).
+// the drafted entries in the same `type(area): wording` form a maintainer types
+// back, plus a hidden base64 data block so `/changelog apply` can recover the
+// exact drafted text without re-calling the model (what the human saw is what
+// gets added).
 
 import type { Areas } from "./areas";
-import { typeLabel, type ChangelogDraft } from "./llm";
+import type { ChangelogDraft } from "./llm";
 
 export const MARKER = "<!-- 0xff-changelog -->";
 const DATA_PREFIX = "<!-- 0xff-changelog-data:";
 const DATA_SUFFIX = "-->";
 
-/** Render the proposal comment: human-readable options plus a hidden data block. */
+/** Render the proposal comment: the drafted entries plus a hidden data block. */
 export function renderProposal(draft: ChangelogDraft, areas: Areas): string {
   // base64 so option text containing "-->" cannot truncate the data block early.
   const data = `${DATA_PREFIX} ${Buffer.from(JSON.stringify(draft), "utf8").toString("base64")} ${DATA_SUFFIX}`;
@@ -20,36 +21,41 @@ export function renderProposal(draft: ChangelogDraft, areas: Areas): string {
     return [
       MARKER,
       "",
-      "I couldn't draft a changelog entry for this PR. Comment `/changelog <area>: your wording` to add one.",
+      "I couldn't draft a changelog entry for this PR. Add one with `/changelog` followed by `type(area): wording` lines, or `/changelog skip` to omit.",
       data,
     ].join("\n");
   }
   const n = draft.entries.length;
-  const list = draft.entries
-    .map((e, i) => `${i + 1}. **${areas.byId(e.area).heading}** · _${typeLabel(e.type)}_\n   ${e.medium}`)
-    .join("\n");
-  const lengths = draft.entries
-    .map((e, i) => `${i + 1}. **short:** ${e.short}\n   **long:** ${e.long}`)
-    .join("\n\n");
-  const areaList = areas.list.map((a) => `- \`${a.id}\`: ${a.heading}`).join("\n");
+  // Entries in the same shape you'd type back, so they copy straight into a
+  // custom `/changelog`.
+  const entryLines = draft.entries.map((e) => `${e.type}(${e.area}): ${e.medium}`).join("\n");
+  const exampleArea = areas.list[0]!.id;
+  const commandExamples = [
+    "/changelog apply",
+    "/changelog skip",
+    "/changelog",
+    `feat(${exampleArea}): your first entry`,
+    `fix(${exampleArea}): your second entry`,
+  ].join("\n");
+  const areaList = areas.list.map((a) => `\`${a.id}\``).join(", ");
   return [
     MARKER,
     "",
     `**Proposed changelog** (${n} entr${n === 1 ? "y" : "ies"}):`,
     "",
-    list,
+    "```",
+    entryLines,
+    "```",
     "",
-    "Comment `/changelog apply` to add the entries above as-is, `/changelog short` or `/changelog long` to pick a length, `/changelog <area>: custom wording` for your own, or `/changelog skip`. You can also edit `CHANGELOG.md` directly; this never overwrites hand-edits.",
+    "`/changelog apply` to add these, or `/changelog` with your own `type(area): wording` lines. `/changelog skip` to omit.",
     "",
-    "<details><summary>Short and long wordings</summary>",
+    "<details><summary>Commands</summary>",
     "",
-    lengths,
+    "```",
+    commandExamples,
+    "```",
     "",
-    "</details>",
-    "",
-    "<details><summary>Areas</summary>",
-    "",
-    areaList,
+    `Areas: ${areaList}.`,
     "",
     "</details>",
     data,

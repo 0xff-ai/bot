@@ -12,7 +12,7 @@ maintainers:
 # CHANGELOG.md. List only your product's user-facing areas; the bot appends its
 # own `Internal & maintenance` area last for non-user-facing work (refactors,
 # tests, CI, chores, deps, docs), so `internal` is reserved — don't define it.
-# `aliases` let humans name an area loosely in `/changelog <area>: ...`.
+# `aliases` let humans name an area loosely in `/changelog type(area): ...`.
 areas:
   - id: providers
     heading: Providers & projected paths

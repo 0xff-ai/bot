@@ -4,7 +4,7 @@ A changelog bot for repos that keep a [Keep a Changelog](https://keepachangelog.
 
 ## How it works
 
-- **Propose** (on `pull_request`): unless the PR already edits `CHANGELOG.md`, the bot drafts at least one entry per PR (each typed, area-classified, and offered in three lengths) and posts a sticky comment. Nothing is skipped: non-user-facing work (refactors, tests, CI, build, chores, dependency bumps, docs) is documented too, demoted to a bot-appended **Internal & maintenance** section at the end. A maintainer can still force-skip a PR with `/changelog skip`.
+- **Propose** (on `pull_request`): unless the PR already edits `CHANGELOG.md`, the bot drafts at least one entry per PR (each typed and area-classified) and posts a sticky comment showing them in `type(area): wording` form. Nothing is skipped: non-user-facing work (refactors, tests, CI, build, chores, dependency bumps, docs) is documented too, demoted to a bot-appended **Internal & maintenance** section at the end. A maintainer can still force-skip a PR with `/changelog skip`.
 - **Apply** (on `issue_comment`): the author or a maintainer replies with a `/changelog` command and the bot commits the entry to the PR branch under its area heading. Fork PRs can't be pushed to, so the bot posts the exact commands a maintainer runs locally.
 - **Gate** (on `pull_request`): reports a `changelog` commit status that blocks merge until `CHANGELOG.md` changes (or the `no-changelog` label is set). A missing entry leaves that status pending, so the workflow job stays green while branch protection still blocks merge.
 
@@ -14,10 +14,17 @@ The entry is added additively under its `### <area>` subsection: existing lines 
 
 | Comment | Effect |
 |---|---|
-| `/changelog apply` | Add the drafted entries as-is (medium length) |
-| `/changelog apply short` / `long` | Add the drafted entries at a specific length |
-| `/changelog <area>: your wording` | Add custom text under an area |
+| `/changelog apply` | Add the drafted entries as proposed |
+| `/changelog` + `type(area): wording` lines | Add your own entries instead (one per line) |
 | `/changelog skip` | Label `no-changelog`; no entry needed |
+
+To add custom entries, comment `/changelog` followed by one `type(area): wording` line per entry, for example:
+
+```
+/changelog
+feat(cli): add the new auth explain command
+fix(runtime): correct mount teardown ordering
+```
 
 Only the PR author or a maintainer (repo owner/member/collaborator, or a login in `maintainers`) can apply. Anyone can instead just edit `CHANGELOG.md` directly.
 

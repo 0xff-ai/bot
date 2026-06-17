@@ -1,7 +1,8 @@
 // The changelog bot has two human-facing stages:
 //
 //   propose(pr):  on every PR, draft at least one entry (each typed and area-
-//                 classified, in three lengths) and post them as a sticky comment.
+//                 classified) and post them as a sticky comment in `type(area):
+//                 wording` form.
 //                 Nothing is skipped: non-user-facing work (refactors, tests, CI,
 //                 chores, deps, docs) is documented under the bot-owned Internal &
 //                 maintenance area instead. Skipped only when the PR already edits
@@ -14,7 +15,6 @@
 //
 // The merge gate is reported by gate() as the `changelog` check (see that method).
 
-import { match } from "ts-pattern";
 import { appendBulletsToUnreleased, parseChangelog, withUnreleased } from "./changelog";
 import { parseCommand, type Command } from "./command";
 import { MARKER, parseProposalData, renderApplied, renderProposal } from "./comment";
@@ -98,11 +98,15 @@ export class ChangelogBot {
       await this.github.postComment(pr, `Labeled \`${SKIP_LABEL}\`: no changelog entry needed.`);
       return;
     }
+    if (command.kind === "error") {
+      await this.github.postComment(pr, command.message);
+      return;
+    }
     const bullets = await this.resolveBullets(pr, command);
     if (bullets.length === 0) {
       await this.github.postComment(
         pr,
-        "Couldn't resolve a changelog entry from that command. Try `/changelog [short|med|long]` or `/changelog <area>: your text`.",
+        "Couldn't resolve a changelog entry. Use `/changelog apply` to add the proposed entries, or `/changelog` with `type(area): wording` lines.",
       );
       return;
     }
@@ -119,25 +123,19 @@ export class ChangelogBot {
     await this.commitToBranch(pr, head.ref, stamped, ctx.author);
   }
 
-  private async resolveBullets(pr: number, command: Exclude<Command, { kind: "skip" }>): Promise<Bullet[]> {
-    const draft = await this.recoverDraft(pr);
-    return match(command)
-      .with({ kind: "length" }, (c) => {
-        if (!draft) return [];
-        return draft.entries
-          .map((e) => {
-            const text = e[c.length].trim();
-            return text.length > 0 ? { area: e.area, text: `**${typeLabel(e.type)}:** ${text}` } : undefined;
-          })
-          .filter((b): b is Bullet => b !== undefined);
-      })
-      .with({ kind: "text" }, (c) => {
-        const text = c.text.trim();
-        if (text.length === 0) return [];
-        const area = c.area ?? draft?.entries[0]?.area ?? this.config.areas.fallback.id;
-        return [{ area, text }];
-      })
-      .exhaustive();
+  private async resolveBullets(
+    pr: number,
+    command: Extract<Command, { kind: "apply" } | { kind: "entries" }>,
+  ): Promise<Bullet[]> {
+    const toBullet = (area: string, type: string, text: string): Bullet | undefined => {
+      const trimmed = text.trim();
+      return trimmed.length > 0 ? { area, text: `**${typeLabel(type)}:** ${trimmed}` } : undefined;
+    };
+    const source =
+      command.kind === "apply"
+        ? ((await this.recoverDraft(pr))?.entries ?? []).map((e) => ({ area: e.area, type: e.type, text: e.medium }))
+        : command.entries;
+    return source.map((e) => toBullet(e.area, e.type, e.text)).filter((b): b is Bullet => b !== undefined);
   }
 
   private async recoverDraft(pr: number): Promise<ChangelogDraft | undefined> {
