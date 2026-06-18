@@ -10,8 +10,10 @@
 //                 `/changelog skip` command (the `no-changelog` label).
 //
 //   apply(pr):    when the author or a maintainer comments `/changelog ...`, commit
-//                 the chosen entries to the PR's own branch under their areas. Fork
-//                 PRs can't be pushed to, so the bot posts the commands to run.
+//                 the chosen entries to the PR's own branch under their areas. The
+//                 commit opts out of CI and the bot reports the changelog status
+//                 directly for that new head. Fork PRs can't be pushed to, so the
+//                 bot posts the commands to run.
 //
 // The merge gate is reported by gate() as the `changelog` check (see that method).
 
@@ -155,8 +157,11 @@ export class ChangelogBot {
     await Bun.write(this.repo.path(CHANGELOG), withUnreleased(log, body).raw);
     const id = await this.github.userIdentity(author);
     await this.repo.$`git add ${CHANGELOG}`;
-    await this.repo.$`git commit -m ${`${COMMIT_PREFIX} add ${bullets.length === 1 ? "entry" : "entries"} for #${pr}`} --author=${`${id.name} <${id.email}>`}`;
+    const message = `${COMMIT_PREFIX} add ${bullets.length === 1 ? "entry" : "entries"} for #${pr}`;
+    await this.repo.$`git commit --cleanup=verbatim -m ${message} -m ${""} -m ${"skip-checks: true"} --author=${`${id.name} <${id.email}>`}`;
+    const headSha = (await this.repo.$`git rev-parse HEAD`.text()).trim();
     await this.repo.$`git push origin HEAD:${ref}`;
+    await this.github.reportStatus("changelog", headSha, "success", "Changelog entry present");
     const areas = [...new Set(bullets.map((b) => this.config.areas.byId(b.area).heading))].join(", ");
     // Edit the sticky proposal comment in place rather than posting a reply: drop
     // the proposals and leave just the applied confirmation.

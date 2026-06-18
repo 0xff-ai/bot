@@ -64,6 +64,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      statuses: write
     env:
       GITHUB_TOKEN: ${{ github.token }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
